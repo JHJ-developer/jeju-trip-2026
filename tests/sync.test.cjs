@@ -1,0 +1,40 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const {merge,SyncEngine,copy}=require('../sync.js');
+const doc={days:[{id:'day1',label:'1일차',subtitle:'',items:[{id:'one',start:'09:00',end:'10:00',title:'기존',detail:'메모',done:false},{id:'two',start:'11:00',end:'12:00',title:'둘째',detail:'',done:false}]}]};
+test('merges different fields and items without losing either edit',()=>{
+ const mine=copy(doc),theirs=copy(doc);mine.days[0].items[0].title='내 제목';theirs.days[0].items[0].done=true;theirs.days[0].items[1].detail='가족 메모';
+ const result=merge(doc,mine,theirs);assert.equal(result.conflicts.length,0);assert.equal(result.document.days[0].items[0].title,'내 제목');assert.equal(result.document.days[0].items[0].done,true);assert.equal(result.document.days[0].items[1].detail,'가족 메모');
+});
+test('same-field and edit-delete conflicts require explicit selection',()=>{
+ const mine=copy(doc),theirs=copy(doc);mine.days[0].items[0].title='나';theirs.days[0].items[0].title='가족';
+ assert.equal(merge(doc,mine,theirs).conflicts.length,1);assert.equal(merge(doc,mine,theirs,'mine').document.days[0].items[0].title,'나');assert.equal(merge(doc,mine,theirs,'family').document.days[0].items[0].title,'가족');
+ theirs.days[0].items.shift();assert.equal(merge(doc,mine,theirs).conflicts[0].field,'삭제된 일정');assert.equal(merge(doc,mine,theirs,'family').document.days[0].items.length,1);assert.equal(merge(doc,mine,theirs,'mine').document.days[0].items.length,2);
+});
+test('add and delete retries are idempotent',()=>{
+ const mine=copy(doc);mine.days[0].items.shift();mine.days[0].items.push({id:'new',start:'',end:'',title:'새 일정',detail:'',done:false});
+ assert.deepEqual(merge(doc,mine,mine).document,mine);assert.equal(merge(doc,mine,mine).conflicts.length,0);
+});
+test('concurrent start/end edits cannot create an invalid time range',()=>{
+ const mine=copy(doc),theirs=copy(doc);mine.days[0].items[0].end='09:30';theirs.days[0].items[0].start='09:45';
+ const result=merge(doc,mine,theirs);assert.equal(result.conflicts.length,1);assert.equal(result.conflicts[0].field,'시간');
+ const chosen=merge(doc,mine,theirs,'mine').document.days[0].items[0];assert.equal(chosen.start,'09:00');assert.equal(chosen.end,'09:30');
+});
+function server(){let state={document:copy(doc),version:1,updated_at:new Date().toISOString()};return {request:async(method,body)=>{if(method==='PUT'){if(body.version!==state.version){const e=Error();e.status=409;throw e;}state={document:copy(body.document),version:state.version+1,updated_at:new Date().toISOString()};}return copy(state);},state:()=>copy(state)};}
+test('two independent clients preserve simultaneous edits through version conflicts',async()=>{
+ const api=server(),a=new SyncEngine({request:api.request}),b=new SyncEngine({request:api.request});await Promise.all([a.run(),b.run()]);
+ let base=copy(a.document),next=copy(base);next.days[0].items[0].title='A';a.edit(base,next);
+ base=copy(b.document);next=copy(base);next.days[0].items[1].title='B';b.edit(base,next);
+ await Promise.all([a.run(),b.run()]);await a.run();assert.equal(a.document.days[0].items[0].title,'A');assert.equal(a.document.days[0].items[1].title,'B');assert.equal(a.dirty,false);assert.equal(b.dirty,false);
+});
+test('offline cache survives restart and a lost write response is safe to retry',async()=>{
+ const api=server();let offline=false,lose=false;const request=async(method,body)=>{if(offline)throw Error('offline');const response=await api.request(method,body);if(method==='PUT'&&lose){lose=false;throw Error('lost');}return response;};
+ const a=new SyncEngine({request});await a.run();const base=copy(a.document),next=copy(base);next.days[0].items[0].done=true;a.edit(base,next);offline=true;await a.run();assert.equal(a.status,'offline');assert.equal(a.dirty,true);
+ const b=new SyncEngine({request,cached:a.snapshot()});offline=false;lose=true;await b.run();assert.equal(b.dirty,true);const version=api.state().version;await b.run();assert.equal(b.dirty,false);assert.equal(api.state().version,version);assert.equal(b.document.days[0].items[0].done,true);
+});
+test('edits made while a save is in flight remain pending and are saved',async()=>{
+ const api=server();let release,entered;const gate=new Promise(r=>entered=r);let first=true;
+ const a=new SyncEngine({request:async(method,body)=>{if(method==='PUT'&&first){first=false;entered();await new Promise(r=>release=r);}return api.request(method,body);}});await a.run();
+ let base=copy(a.document),next=copy(base);next.days[0].items[0].done=true;a.edit(base,next);const saving=a.run();await gate;
+ base=copy(a.document);next=copy(base);next.days[0].items[1].detail='저장 중 수정';a.edit(base,next);release();await saving;assert.equal(a.dirty,false);assert.equal(api.state().document.days[0].items[1].detail,'저장 중 수정');
+});

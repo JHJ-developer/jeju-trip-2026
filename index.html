@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#182132">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -58,6 +59,21 @@ dialog::backdrop{background:rgba(0,0,0,.38)}
  .title{font-size:14px}
  .detail{font-size:12.5px}
 }
+
+.sharebar{margin:16px 0 8px;padding:14px;border:1px solid var(--line);border-radius:14px;background:#fff}
+.sharetools{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.syncstatus{font-size:14px;line-height:1.6;font-weight:650}
+.syncstatus.problem{color:#9d3418}
+.smallnote{font-size:14px;color:var(--muted);line-height:1.6;margin:8px 0 0}
+.conflictitem{padding:10px 0;border-bottom:1px solid var(--line);font-size:14px;overflow-wrap:anywhere}
+#conflictList{max-height:45vh;overflow:auto}
+dialog{max-height:90dvh;overflow:auto} button{cursor:pointer;min-height:42px}
+button:disabled{opacity:.5;cursor:default}
+.field label{font-size:14px}.field input,.field textarea{font-size:16px}
+.item .detail,.daymeta{font-size:14px}.item .title{font-size:16px}
+.btn:focus-visible,.tab:focus-visible,.iconbtn:focus-visible{outline:3px solid #3b82f6;outline-offset:2px}
+[hidden]{display:none!important}
+@media(max-width:480px){.item{grid-template-columns:26px 70px minmax(0,1fr) 36px;gap:6px}.time{font-size:12px}.title,.detail{overflow-wrap:anywhere}.sharetools .btn{flex:1}.actions{flex-wrap:wrap}}
 </style>
 </head>
 <body>
@@ -65,6 +81,16 @@ dialog::backdrop{background:rgba(0,0,0,.38)}
   <h1>제주 가족여행 플래너</h1>
   <div class="sub">2026.10.26 ~ 10.30 · 그랜드 하얏트 제주<br>렌터카 10/26 12:30 대여 · 10/30 11:30 반납</div>
 
+  <section class="sharebar" aria-label="가족 공유">
+    <div id="syncStatus" class="syncstatus" role="status" aria-live="polite">일정을 불러오는 중입니다.</div>
+    <div class="sharetools">
+      <button class="btn primary" id="shareBtn">가족에게 공유</button>
+      <button class="btn" id="refreshBtn" hidden>지금 동기화</button>
+      <button class="btn" id="importBtn" hidden>이 기기의 이전 수정 가져오기</button>
+    </div>
+    <p class="smallnote" id="modeNote"></p>
+    <p class="smallnote" id="storageWarning" role="alert" hidden>이 기기에 임시 저장하지 못했습니다. 온라인 저장 완료를 확인하기 전에는 창을 닫지 마세요.</p>
+  </section>
   <div class="topcard">
     <div class="progressrow"><span>전체 진척도</span><strong id="overallText">0%</strong></div>
     <div class="progress"><div id="overallBar"></div></div>
@@ -75,18 +101,18 @@ dialog::backdrop{background:rgba(0,0,0,.38)}
   <div class="tabs" id="tabs"></div>
   <main id="content"></main>
   <details class="footerhint"><summary>추천 일정 참고 안내</summary><p>이동·관람 시간은 여유를 둔 계획값입니다. 운영 공지와 교통 상황에 따라 조정하세요.</p><a href="https://www.hallimpark.com/" target="_blank" rel="noopener">한림공원 공식 안내</a> · <a href="https://visitjeju.net/kr/detail/view?contentsid=CONT_000000000500697" target="_blank" rel="noopener">협재해수욕장 안내</a> · <a href="https://nexonmuseum.org" target="_blank" rel="noopener">넥슨뮤지엄 공식 안내</a></details>
-  <div class="footerhint">Safari에서 홈 화면에 추가하면 앱처럼 사용할 수 있습니다. 수정한 일정과 체크 상태는 이 기기의 브라우저에 저장됩니다.</div>
+  <div class="footerhint">Safari에서 홈 화면에 추가하면 앱처럼 사용할 수 있습니다. 가족용 링크로 연결하면 일정과 체크 상태가 함께 저장됩니다.</div>
 </div>
 
 <dialog id="editDialog">
   <form method="dialog" class="modal" id="editForm">
     <h3 id="modalTitle">일정 수정</h3>
     <div class="grid2">
-      <div class="field"><label>시작시각</label><input type="time" id="startInput"></div>
-      <div class="field"><label>종료시각</label><input type="time" id="endInput"></div>
+      <div class="field"><label for="startInput">시작시각</label><input type="time" id="startInput"></div>
+      <div class="field"><label for="endInput">종료시각</label><input type="time" id="endInput"></div>
     </div>
-    <div class="field"><label>일정명</label><input type="text" id="titleInput" required></div>
-    <div class="field"><label>메모</label><textarea id="detailInput"></textarea></div>
+    <div class="field"><label for="titleInput">일정명</label><input type="text" id="titleInput" maxlength="300" required></div>
+    <div class="field"><label for="detailInput">메모</label><textarea id="detailInput" maxlength="5000"></textarea></div>
     <div class="actions">
       <button type="button" class="btn danger" id="deleteBtn">삭제</button>
       <button type="button" class="btn" id="cancelBtn">취소</button>
@@ -95,114 +121,29 @@ dialog::backdrop{background:rgba(0,0,0,.38)}
   </form>
 </dialog>
 
-<script>
-const DEFAULT_DATA = {"days":[{"id":"day1","label":"1일차 · 10/26","subtitle":"김포 → 제주 · 첫 비행 / 제주공항 점심 / 렌터카 / 장보기 / 체크인","items":[{"id":"d1-1","start":"08:00","end":"08:20","title":"김포공항 예약주차장 도착","detail":"차량 주차 후 짐 정리. 서두르지 않고 국내선 청사로 이동.","done":false},{"id":"d1-2","start":"08:20","end":"08:40","title":"체크인·수하물 위탁","detail":"큰 짐은 먼저 맡기고 기내에는 아윤이 용품 위주로 최소화.","done":false},{"id":"d1-3","start":"08:40","end":"09:05","title":"공항·비행기 구경","detail":"첫 탑승 분위기에 천천히 익숙해지기.","done":false},{"id":"d1-4","start":"09:05","end":"09:20","title":"보안검색 통과","detail":"탑승구 안쪽으로 여유 있게 이동.","done":false},{"id":"d1-5","start":"09:20","end":"09:35","title":"탑승구 주변 간식·비행기 구경","detail":"스티커 → 간식 → 영상처럼 놀거리를 순서대로 사용.","done":false},{"id":"d1-6","start":"09:35","end":"10:00","title":"마지막 화장실·탑승 준비","detail":"이륙 때 귀 불편함 대비 물·빨대컵·작은 간식 준비.","done":false},{"id":"d1-7","start":"10:00","end":"11:10","title":"김포 → 제주 출발 ✈️","detail":"상승 시 물이나 간식으로 자연스럽게 삼키기 유도.","done":false},{"id":"d1-8","start":"11:10","end":"11:40","title":"제주공항 도착·수하물 수령","detail":"수하물 수령 후 공항 안에서 점심 준비.","done":false},{"id":"d1-9","start":"11:40","end":"12:15","title":"제주공항에서 점심","detail":"국수·밥·돈가스처럼 아윤이도 먹기 쉬운 메뉴 우선.","done":false},{"id":"d1-10","start":"12:15","end":"12:30","title":"렌터카 셔틀 탑승 준비","detail":"식사를 마치고 업체 셔틀 승차장으로 이동.","done":false},{"id":"d1-11","start":"12:30","end":"13:10","title":"렌터카 인수","detail":"카시트 고정, 차량 외관·경고등·연료 반납 조건 확인.","done":false},{"id":"d1-12","start":"13:20","end":"14:20","title":"대형마트 장보기","detail":"물·간식·과일·생활용품 구매.","done":false},{"id":"d1-13","start":"14:40","end":"15:00","title":"그랜드 하얏트 제주 도착","detail":"짐 정리 후 체크인 준비.","done":false},{"id":"d1-14","start":"15:00","end":"16:30","title":"체크인·객실 휴식","detail":"객실 정리 후 낮잠·휴식.","done":false},{"id":"d1-15","start":"16:40","end":"17:40","title":"도두·이호테우 짧은 산책","detail":"아윤이 컨디션이 좋을 때만. 피곤하면 생략.","done":false},{"id":"d1-16","start":"18:10","end":"18:30","title":"호텔 복귀","detail":"저녁 전 잠깐 휴식.","done":false},{"id":"d1-17","start":"18:30","end":"19:40","title":"호텔 저녁","detail":"피자·파스타 등 편한 메뉴 우선.","done":false},{"id":"d1-18","start":"20:00","end":"21:00","title":"목욕·취침 준비","detail":"첫날은 일찍 마무리.","done":false}]},{"id":"day2","label":"2일차 · 10/27","subtitle":"아쿠아플라넷 DAY","items":[{"id":"d2-1","start":"07:20","end":"08:00","title":"호텔 조식","detail":"","done":false},{"id":"d2-2","start":"08:15","end":"09:20","title":"그랜드 하얏트 출발","detail":"물·간식·여벌옷·아이 용품 챙기기.","done":false},{"id":"d2-3","start":"09:20","end":"09:30","title":"아쿠아플라넷 제주 도착","detail":"오픈 시간에 맞춰 입장 준비.","done":false},{"id":"d2-4","start":"09:30","end":"12:00","title":"아쿠아플라넷 관람","detail":"수족관·메인 수조·공연/특별전.","done":false},{"id":"d2-5","start":"12:10","end":"13:10","title":"점심 · 돈가스/우동","detail":"아이와 먹기 쉬운 메뉴 우선.","done":false},{"id":"d2-6","start":"13:20","end":"14:00","title":"낮잠/차 안 휴식","detail":"잠들면 깨우지 않기. 오후 일정은 줄여도 됨.","done":false},{"id":"d2-7","start":"14:10","end":"15:10","title":"섭지코지 산책","detail":"30~60분. 끝까지 완주하지 않아도 됨.","done":false},{"id":"d2-8","start":"15:20","end":"16:10","title":"카페·간식","detail":"장거리 복귀 전 휴식.","done":false},{"id":"d2-9","start":"16:15","end":"17:30","title":"호텔로 이동","detail":"","done":false},{"id":"d2-10","start":"17:30","end":"18:30","title":"호텔 복귀·휴식","detail":"","done":false},{"id":"d2-11","start":"18:30","end":"19:30","title":"호텔 저녁","detail":"피자·파스타 또는 푸드코트 등 간단히.","done":false}]},{"id":"day3","label":"3일차 · 10/28","subtitle":"서쪽 나들이 · 한림공원 / 협재 바다 / 낮잠 · 시간은 추천안","items":[{"id":"d3-1","start":"08:00","end":"09:00","title":"여유 있게 호텔 조식","detail":"전날 장거리 외출 후 천천히 시작. 평소 먹던 음식과 간식 준비.","done":false},{"id":"d3-2","start":"09:10","end":"10:20","title":"호텔 → 한림공원","detail":"주차·화장실 시간을 포함한 이동 여유. 출발 전 내비게이션으로 소요시간 확인.","done":false},{"id":"d3-3","start":"10:20","end":"11:50","title":"한림공원 가볍게 관람","detail":"정원 중심으로 짧게 둘러보기. 전체 코스를 완주하지 않고 아이가 피곤하면 일찍 마무리. 방문 전 운영 공지 확인.","done":false},{"id":"d3-4","start":"12:00","end":"13:00","title":"한림·협재에서 점심","detail":"밥과 구이 등 가족이 평소 먹던 메뉴로 선택. 아이 음식은 재료·소스 확인.","done":false},{"id":"d3-5","start":"13:10","end":"13:50","title":"협재해수욕장 산책·모래놀이","detail":"수영 없이 바다 구경과 짧은 모래놀이. 바람이 강하거나 피곤하면 생략. 여벌옷 준비.","done":false},{"id":"d3-6","start":"14:00","end":"15:10","title":"호텔로 이동·차 안 낮잠","detail":"아이 수면 리듬에 맞춰 산책을 앞당겨 종료해도 좋음.","done":false},{"id":"d3-7","start":"15:10","end":"17:30","title":"객실 휴식·자유시간","detail":"낮잠이 부족하면 객실에서 쉬기. 비가 많이 오면 서쪽 외출 대신 호텔 휴식으로 변경.","done":false},{"id":"d3-8","start":"17:30","end":"18:30","title":"호텔 또는 가까운 곳에서 저녁","detail":"이동을 줄이고 편안하게 식사.","done":false},{"id":"d3-9","start":"19:00","end":"20:30","title":"목욕·독서·취침 준비","detail":"다음 날도 느긋하게 시작.","done":false}]},{"id":"day4","label":"4일차 · 10/29","subtitle":"제주시내 & 호텔 DAY · 실내 관람 / 낮잠 / 선택 수영 · 시간은 추천안","items":[{"id":"d4-1","start":"08:00","end":"09:00","title":"호텔 조식","detail":"오전에는 가까운 곳 한 군데만 방문.","done":false},{"id":"d4-2","start":"09:30","end":"10:00","title":"외출 준비·넥슨뮤지엄으로 이동","detail":"옛 넥슨컴퓨터박물관. 방문 전 공식 사이트에서 운영·입장 안내 확인.","done":false},{"id":"d4-3","start":"10:00","end":"11:20","title":"넥슨뮤지엄 가볍게 관람","detail":"컴퓨터·게임 전시를 구경하며 아이가 흥미를 보이는 곳 위주로 이동. 체험은 현장 연령 조건에 맞춰 선택.","done":false},{"id":"d4-4","start":"11:30","end":"12:30","title":"호텔 근처 점심","detail":"평소 먹던 밥·고기류 중심으로 선택. 새로운 음식 체험은 무리하지 않기.","done":false},{"id":"d4-5","start":"12:40","end":"15:00","title":"호텔 복귀·낮잠","detail":"오후 외출 없이 충분히 쉬기.","done":false},{"id":"d4-6","start":"15:00","end":"16:00","title":"선택: 호텔 수영 또는 객실 놀이","detail":"수영장 운영과 어린이 이용 조건은 호텔에 확인. 아이 컨디션에 따라 30~60분만 이용하거나 객실 놀이로 대체.","done":false},{"id":"d4-7","start":"16:00","end":"17:00","title":"샤워·간식·휴식","detail":"평소 먹던 간식과 물 준비.","done":false},{"id":"d4-8","start":"17:00","end":"17:40","title":"선택: 호텔 주변 짧은 산책","detail":"피곤하거나 비가 오면 생략. 장거리 관광은 넣지 않기.","done":false},{"id":"d4-9","start":"18:00","end":"19:00","title":"제주에서 마지막 저녁","detail":"호텔이나 도보로 가까운 식당에서 여유 있게 식사.","done":false},{"id":"d4-10","start":"19:00","end":"20:00","title":"짐 정리·귀가 준비","detail":"항공편 출발시각, 렌터카 반납 장소·셔틀, 신분증 확인. 기내 가방과 위탁 짐을 분리.","done":false},{"id":"d4-11","start":"20:00","end":"20:30","title":"취침 준비","detail":"다음 날 체크아웃을 위해 일찍 마무리.","done":false}]},{"id":"day5","label":"5일차 · 10/30","subtitle":"귀가 DAY · 11:30 렌터카 반납 기준 / 항공편 시간 확인 필요","items":[{"id":"d5-1","start":"07:30","end":"08:30","title":"마지막 호텔 조식","detail":"오전 출발 준비를 여유 있게 진행.","done":false},{"id":"d5-2","start":"08:30","end":"09:40","title":"짐 마무리·객실 확인","detail":"충전기, 냉장고, 금고, 아이 물건 점검. 항공편에 맞춰 필요하면 전체 일정을 앞당기기.","done":false},{"id":"d5-3","start":"09:40","end":"10:10","title":"체크아웃","detail":"정산과 짐 싣는 시간 포함.","done":false},{"id":"d5-4","start":"10:10","end":"11:00","title":"주유·렌터카 반납 장소로 이동","detail":"계약된 연료 조건 확인. 반납 지점은 공항과 다를 수 있으므로 예약 문자 주소로 이동.","done":false},{"id":"d5-5","start":"11:00","end":"11:30","title":"렌터카 반납","detail":"기존 계획의 11:30 반납 기준. 차량 확인과 짐 내리기, 카시트 주변 분실물 확인.","done":false},{"id":"d5-6","start":"11:30","end":"12:10","title":"셔틀 대기·제주공항 이동","detail":"셔틀 배차와 도로 상황에 따라 변동. 실제 항공편과 여유가 맞는지 전날 확인.","done":false},{"id":"d5-7","start":"","end":"","title":"체크인·수하물 위탁·점심","detail":"항공편 시간에 맞춰 진행. 공항 도착 후 시간이 충분할 때 식사하고, 보안검색·탑승 마감시간을 우선.","done":false},{"id":"d5-8","start":"","end":"","title":"제주 → 김포 탑승 ✈️","detail":"출발·도착시각은 예약 항공권 확인 후 수정 버튼으로 입력.","done":false},{"id":"d5-9","start":"","end":"","title":"김포 도착·차량 수령·귀가","detail":"수하물 수령과 주차장 이동 후 귀가. 도착시각은 항공편 확인 후 입력.","done":false}]}]};
-const KEY = "jejuTripPWA_v1";
-let data = load();
-let active = data.days[0].id;
-let editing = null;
 
-function clone(x){return JSON.parse(JSON.stringify(x));}
-function load(){
-  let saved;
-  try { saved=JSON.parse(localStorage.getItem(KEY)); } catch(e) {}
-  if(!saved || !Array.isArray(saved.days) || !saved.days.length) return clone(DEFAULT_DATA);
-  for(const day of DEFAULT_DATA.days){
-    if(!saved.days.some(d=>d.id===day.id)) saved.days.push(clone(day));
-  }
-  try { localStorage.setItem(KEY,JSON.stringify(saved)); } catch(e) {}
-  return saved;
-}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(data))}catch(e){}}
-function uid(){return "i-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,7)}
-function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]))}
-function pct(arr){return arr.length?Math.round(arr.filter(x=>x.done).length/arr.length*100):0}
-function allItems(){return data.days.flatMap(d=>d.items)}
-function sortDay(d){d.items.sort((a,b)=>(a.start||"99:99").localeCompare(b.start||"99:99")||(a.end||"").localeCompare(b.end||""))}
-
-function renderTabs(){
-  const el=document.getElementById("tabs");
-  el.innerHTML=data.days.map(d=>`<button class="tab ${active===d.id?"active":""}" data-id="${d.id}">${esc(d.label)}</button>`).join("");
-  el.querySelectorAll("button").forEach(b=>b.onclick=()=>{active=b.dataset.id;render();});
-}
-
-function render(){
-  renderTabs();
-  const d=data.days.find(x=>x.id===active);
-  sortDay(d);
-  const p=pct(d.items);
-  document.getElementById("content").innerHTML=`
-    <section class="daycard">
-      <div class="dayhead">
-        <div><h2>${esc(d.label)}</h2><div class="daymeta">${esc(d.subtitle||"")}</div></div>
-        <span class="dayprogress">${p}%</span>
-      </div>
-      ${d.items.map(i=>`
-        <div class="item ${i.done?"done":""}">
-          <input type="checkbox" data-check="${i.id}" ${i.done?"checked":""}>
-          <div class="time">${i.start ? esc(i.start)+"<br>~ "+esc(i.end) : "시간 미정"}</div>
-          <div><div class="title">${esc(i.title)}</div>${i.detail?`<div class="detail">${esc(i.detail)}</div>`:""}</div>
-          <button class="iconbtn" data-edit="${i.id}" aria-label="일정 수정">✎</button>
-        </div>`).join("")}
-      <button class="addbtn" id="addBtn">＋ 일정 추가</button>
-    </section>`;
-  document.querySelectorAll("[data-check]").forEach(cb=>cb.onchange=()=>{
-    const i=d.items.find(x=>x.id===cb.dataset.check); i.done=cb.checked; save(); render();
-  });
-  document.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>openEdit(d.id,b.dataset.edit));
-  document.getElementById("addBtn").onclick=()=>openAdd(d.id);
-  const op=pct(allItems());
-  document.getElementById("overallText").textContent=op+"%";
-  document.getElementById("overallBar").style.width=op+"%";
-}
-
-const dlg=document.getElementById("editDialog");
-const form=document.getElementById("editForm");
-const s=document.getElementById("startInput"), e=document.getElementById("endInput"), t=document.getElementById("titleInput"), m=document.getElementById("detailInput");
-const del=document.getElementById("deleteBtn");
-function openEdit(dayId,itemId){
-  const d=data.days.find(x=>x.id===dayId), i=d.items.find(x=>x.id===itemId);
-  editing={mode:"edit",dayId,itemId};
-  document.getElementById("modalTitle").textContent="일정 수정";
-  s.value=i.start;e.value=i.end;t.value=i.title;m.value=i.detail||"";del.style.display="";
-  dlg.showModal();
-}
-function openAdd(dayId){
-  editing={mode:"add",dayId};
-  document.getElementById("modalTitle").textContent="새 일정 추가";
-  s.value="";e.value="";t.value="";m.value="";del.style.display="none";
-  dlg.showModal();
-}
-document.getElementById("cancelBtn").onclick=()=>dlg.close();
-del.onclick=()=>{
-  if(!editing||editing.mode!=="edit")return;
-  if(!confirm("이 일정을 삭제할까요?"))return;
-  const d=data.days.find(x=>x.id===editing.dayId);
-  d.items=d.items.filter(x=>x.id!==editing.itemId);
-  save();dlg.close();render();
-};
-form.addEventListener("submit",ev=>{
-  ev.preventDefault();
-  if((s.value && !e.value)||(!s.value && e.value)){alert("시작과 종료시각을 함께 입력하거나 둘 다 비워 주세요.");return;}
-  if(e.value<s.value){alert("종료시각이 시작시각보다 빠릅니다.");return;}
-  const d=data.days.find(x=>x.id===editing.dayId);
-  if(editing.mode==="edit"){
-    const i=d.items.find(x=>x.id===editing.itemId);
-    Object.assign(i,{start:s.value,end:e.value,title:t.value.trim(),detail:m.value.trim()});
-  } else {
-    d.items.push({id:uid(),start:s.value,end:e.value,title:t.value.trim(),detail:m.value.trim(),done:false});
-  }
-  save();dlg.close();render();
-});
-
-if("serviceWorker" in navigator){
-  navigator.serviceWorker.addEventListener("controllerchange",()=>{
-    if(!dlg.open) location.reload();
-    else document.getElementById("updateNotice").hidden=false;
-  });
-  window.addEventListener("load",()=>navigator.serviceWorker.register("./service-worker.js").then(r=>r.update()).catch(()=>{}));
-}
-render();
-</script>
+<dialog id="shareDialog" aria-labelledby="shareTitle"><div class="modal">
+  <h3 id="shareTitle">가족에게 공유</h3>
+  <p class="smallnote">이 링크를 받은 사람은 일정을 보고 수정할 수 있습니다. 가족에게만 보내 주세요.</p>
+  <div class="field"><label for="shareLink">가족용 링크</label><textarea id="shareLink" readonly></textarea></div>
+  <div class="actions"><button class="btn" id="shareClose">닫기</button><button class="btn" id="copyLink">링크 복사</button><button class="btn primary" id="sendLink">공유하기</button></div>
+  <p id="shareFeedback" class="smallnote" role="status"></p>
+</div></dialog>
+<dialog id="joinDialog" aria-labelledby="joinTitle"><form class="modal" id="joinForm">
+  <h3 id="joinTitle">가족 일정에 연결</h3>
+  <p class="smallnote">받으신 가족용 링크를 붙여 넣어 주세요. 이 기기의 기존 일정은 보관됩니다.</p>
+  <div class="field"><label for="inviteInput">가족용 링크</label><textarea id="inviteInput" required placeholder="가족용 링크 전체를 붙여 넣으세요"></textarea></div>
+  <p id="joinError" class="smallnote" role="alert"></p>
+  <div class="actions"><button type="button" class="btn" id="joinClose">취소</button><button class="btn primary" type="submit">연결</button></div>
+</form></dialog>
+<dialog id="conflictDialog" aria-labelledby="conflictTitle"><div class="modal">
+  <h3 id="conflictTitle">같은 내용이 함께 수정됐어요</h3>
+  <p class="smallnote">겹친 부분에 사용할 내용을 선택해 주세요. 서로 다른 부분의 수정은 함께 유지됩니다.</p>
+  <div id="conflictList"></div>
+  <div class="actions"><button class="btn" id="keepFamily">겹친 부분은 가족 수정 사용</button><button class="btn primary" id="keepMine">겹친 부분은 내 수정 사용</button></div>
+</div></dialog>
+<script src="./defaults.js"></script>
+<script src="./sync.js"></script>
+<script src="./app.js"></script>
 </body>
 </html>
