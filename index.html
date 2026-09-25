@@ -60,7 +60,21 @@ dialog::backdrop{background:rgba(0,0,0,.38)}
  .detail{font-size:12.5px}
 }
 
-.sharebar{margin:16px 0 8px;padding:14px;border:1px solid var(--line);border-radius:14px;background:#fff}
+.appheader{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px 10px;align-items:center}
+.appheader h1{font-size:clamp(22px,6vw,27px)}
+.appheader .sub{grid-column:1/-1;margin-top:0}
+.header-sync{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:62px;min-height:58px;padding:5px!important;color:var(--text);font-size:12px;white-space:nowrap}
+.header-sync .sync-symbol{font-size:24px;line-height:1}
+.sharebar{margin:14px 0 8px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.sharebar summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 13px;min-height:44px;font-size:14px;font-weight:650;cursor:pointer;list-style:none}
+.sharebar summary::-webkit-details-marker{display:none}
+.sharebar summary:focus-visible{outline:3px solid #3b82f6;outline-offset:2px;border-radius:12px}
+.sharebar .disclosure-label{font-size:12px;font-weight:400;color:var(--muted)}
+.sharebar .when-open{display:none}
+.sharebar[open] .when-open{display:inline}
+.sharebar[open] .when-closed{display:none}
+.sharebody{padding:0 13px 13px;border-top:1px solid var(--line)}
+.sharebody .syncstatus{margin-top:12px}
 .sharetools{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .syncstatus{font-size:14px;line-height:1.6;font-weight:650}
 .syncstatus.problem{color:#9d3418}
@@ -78,19 +92,24 @@ button:disabled{opacity:.5;cursor:default}
 </head>
 <body>
 <div class="app">
-  <h1>제주 가족여행 플래너</h1>
-  <div class="sub">2026.10.26 ~ 10.30 · 그랜드 하얏트 제주<br>렌터카 10/26 12:30 대여 · 10/30 11:30 반납</div>
+  <header class="appheader">
+    <h1>제주 가족여행 플래너</h1>
+    <button class="btn header-sync" id="refreshBtn" aria-label="지금 동기화" hidden><span class="sync-symbol" aria-hidden="true">⟳</span><span>동기화</span></button>
+    <div class="sub">2026.10.26 ~ 10.30 · 그랜드 하얏트 제주<br>렌터카 10/26 12:30 대여 · 10/30 11:30 반납</div>
+  </header>
 
-  <section class="sharebar" aria-label="가족 공유">
+  <details class="sharebar" id="familySettings">
+    <summary><span>가족 공유</span><span class="disclosure-label"><span class="when-closed">펼치기 ⌄</span><span class="when-open">숨기기 ⌃</span></span></summary>
+    <div class="sharebody">
     <div id="syncStatus" class="syncstatus" role="status" aria-live="polite">일정을 불러오는 중입니다.</div>
     <div class="sharetools">
       <button class="btn primary" id="shareBtn">가족에게 공유</button>
-      <button class="btn" id="refreshBtn" hidden>지금 동기화</button>
       <button class="btn" id="importBtn" hidden>이 기기의 이전 수정 가져오기</button>
     </div>
     <p class="smallnote" id="modeNote"></p>
-    <p class="smallnote" id="storageWarning" role="alert" hidden>이 기기에 임시 저장하지 못했습니다. 온라인 저장 완료를 확인하기 전에는 창을 닫지 마세요.</p>
-  </section>
+    </div>
+  </details>
+  <p class="smallnote" id="storageWarning" role="alert" hidden>이 기기에 임시 저장하지 못했습니다. 온라인 저장 완료를 확인하기 전에는 창을 닫지 마세요.</p>
   <div class="topcard">
     <div class="progressrow"><span>전체 진척도</span><strong id="overallText">0%</strong></div>
     <div class="progress"><div id="overallBar"></div></div>
