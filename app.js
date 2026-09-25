@@ -22,7 +22,8 @@ let cached=familyKey?read(CACHE_KEY):null;
 if(!cached||!validDocument(cached.base)||!validDocument(cached.document)||!Number.isInteger(cached.version))cached=null;
 let data=familyKey?(cached?copy(cached.document):{days:[]}):legacy;
 let active='shopping', editing=null, engine=null, deferredImport=false;
-const dlg=$('editDialog'), conflictDialog=$('conflictDialog'), packDlg=$('packDialog');
+const dlg=$('editDialog'), conflictDialog=$('conflictDialog'), packDlg=$('packDialog'), noteDlg=$('noteDialog');
+let noteBase=null;
 let packEditing=null;
 const VIEW_KEY='jejuPackingView:'+ (familyKey||'local');
 const packingView=read(VIEW_KEY)||{closed:{},onlyUnpacked:false};
@@ -32,6 +33,8 @@ const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;
 const uid=()=>crypto.randomUUID();
 const pct=items=>items.length?Math.round(items.filter(i=>i.done).length/items.length*100):0;
 function render(){
+  $('noteText').textContent=data.note||'가족과 공유할 한 줄 메모를 남겨보세요.';
+  $('noteButton').disabled=!!(familyKey&&(!engine?.ready||engine?.errorStatus===401||engine?.pending));
   if(!['packing','shopping'].includes(active)&&!data.days.some(d=>d.id===active))active='shopping';
   const tabScroll=$('tabs').scrollLeft;
   $('tabs').innerHTML=`<button class="tab ${active==='shopping'?'active':''}" aria-pressed="${active==='shopping'}" data-id="shopping">사야할 것</button><button class="tab ${active==='packing'?'active':''}" aria-pressed="${active==='packing'}" data-id="packing">준비물</button>`+data.days.map(d=>`<button class="tab ${active===d.id?'active':''}" aria-pressed="${active===d.id}" data-id="${esc(d.id)}">${esc(d.label)}</button>`).join('');
@@ -109,6 +112,9 @@ $('packDelete').onclick=()=>{
   else{const group=next[scope].groups.find(g=>g.id===groupId);group.items=group.items.filter(i=>i.id!==itemId);}
   packDlg.close();applyChange(base,next);
 };
+$('noteButton').onclick=()=>{noteBase=copy(data);$('noteInput').value=data.note||'';noteDlg.showModal();};
+$('noteCancel').onclick=()=>noteDlg.close();
+$('noteForm').addEventListener('submit',event=>{event.preventDefault();if(!noteBase)return;const next=copy(noteBase);next.note=$('noteInput').value.trim();noteDlg.close();applyChange(noteBase,next);noteBase=null;});
 function persistEngine(){
   const snapshot=engine.snapshot();if(!snapshot)return;
   // A clean tab must not erase an unsent draft left by another tab on this device.
@@ -213,15 +219,15 @@ if(familyKey){
   $('refreshBtn').hidden=false;$('refreshBtn').onclick=()=>void engine.run();
   $('modeNote').textContent='가족이 바꾼 내용을 약 8초마다 확인합니다. 연결이 끊기면 수정사항을 이 기기에 보관합니다.';
   void engine.run();
-  setInterval(()=>{if(!document.hidden&&!dlg.open&&!packDlg.open)void engine.run();},8000);
+  setInterval(()=>{if(!document.hidden&&!dlg.open&&!packDlg.open&&!noteDlg.open)void engine.run();},8000);
   window.addEventListener('online',()=>void engine.run());
-  window.addEventListener('focus',()=>{if(!dlg.open&&!packDlg.open)void engine.run();});
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!dlg.open&&!packDlg.open)void engine.run();});
+  window.addEventListener('focus',()=>{if(!dlg.open&&!packDlg.open&&!noteDlg.open)void engine.run();});
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!dlg.open&&!packDlg.open&&!noteDlg.open)void engine.run();});
 }else{$('shareBtn').textContent='가족 링크 연결';$('modeNote').textContent='가족용 링크로 한 번 연결하면 같은 일정을 함께 수정할 수 있습니다.';}
-window.addEventListener('beforeunload',event=>{if(engine?.dirty||dlg.open||packDlg.open){event.preventDefault();event.returnValue='';}});
+window.addEventListener('beforeunload',event=>{if(engine?.dirty||dlg.open||packDlg.open||noteDlg.open){event.preventDefault();event.returnValue='';}});
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',()=>{
-    if(!dlg.open&&!packDlg.open&&!conflictDialog.open&&!engine?.dirty)location.reload();else $('updateNotice').hidden=false;
+    if(!dlg.open&&!packDlg.open&&!noteDlg.open&&!conflictDialog.open&&!engine?.dirty)location.reload();else $('updateNotice').hidden=false;
   });
   window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').then(r=>r.update()).catch(()=>{}));
 }

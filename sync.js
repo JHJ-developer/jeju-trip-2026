@@ -69,6 +69,11 @@
       document.packing={groups:mergePackingRecords(packingOf(base).groups,packingOf(local).groups,packingOf(remote).groups,true,choice,conflicts)};
     }
     if(base.shopping||local.shopping||remote.shopping)document.shopping={groups:mergePackingRecords(shoppingOf(base).groups,shoppingOf(local).groups,shoppingOf(remote).groups,true,choice,conflicts)};
+    const beforeNote=base.note||'',mineNote=local.note||'',remoteNote=remote.note||'';
+    if(mineNote!==beforeNote){
+      if(remoteNote===beforeNote||remoteNote===mineNote||choice==='mine')document.note=mineNote;
+      else conflicts.push({title:'한 줄 메모',field:'메모',mine:mineNote,theirs:remoteNote});
+    }
     return {document,conflicts};
   }
 

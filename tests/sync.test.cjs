@@ -66,3 +66,12 @@ test('shopping checks merge with packing edits and concurrent purchases',()=>{
  assert.ok(result.document.shopping.groups[0].items.every(i=>i.done));assert.equal(result.document.packing.groups[0].items[0].done,true);
  const old=copy(base);delete old.shopping;assert.deepEqual(merge(old,old,result.document).document.shopping,result.document.shopping);
 });
+
+test('shared note merges independently, detects conflicts, and permits clearing',()=>{
+ const base={...copy(doc),note:'원래 메모'},mine=copy(base),remote=copy(base);
+ mine.note='내 메모';remote.days[0].items[0].done=true;
+ let result=merge(base,mine,remote);assert.equal(result.document.note,'내 메모');assert.equal(result.document.days[0].items[0].done,true);
+ remote.note='가족 메모';result=merge(base,mine,remote);assert.equal(result.conflicts.length,1);assert.equal(result.document.note,'가족 메모');assert.equal(merge(base,mine,remote,'mine').document.note,'내 메모');
+ mine.note='';assert.equal(merge(base,mine,base).document.note,'');
+ const old=copy(doc);assert.equal(merge(old,old,remote).document.note,'가족 메모');
+});

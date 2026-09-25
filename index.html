@@ -65,6 +65,7 @@ dialog::backdrop{background:rgba(0,0,0,.38)}
 .appheader .sub{grid-column:1/-1;margin-top:0}
 .header-sync{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:62px;min-height:58px;padding:5px!important;color:var(--text);font-size:12px;white-space:nowrap}
 .header-sync .sync-symbol{font-size:24px;line-height:1}
+.trip-note{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;margin:12px 0 0;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;text-align:left;color:var(--text);font-size:14px}.note-label{color:var(--muted);flex-shrink:0}#noteText{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.trip-note:focus-visible{outline:3px solid #3b82f6}
 .sharebar{margin:14px 0 8px;border:1px solid var(--line);border-radius:12px;background:#fff}
 .sharebar summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 13px;min-height:44px;font-size:14px;font-weight:650;cursor:pointer;list-style:none}
 .sharebar summary::-webkit-details-marker{display:none}
@@ -106,17 +107,7 @@ button:disabled{opacity:.5;cursor:default}
     <div class="sub">2026.10.26 ~ 10.30 · 그랜드 하얏트 제주<br>렌터카 10/26 12:30 대여 · 10/30 11:30 반납</div>
   </header>
 
-  <details class="sharebar" id="familySettings">
-    <summary><span>가족 공유</span><span class="disclosure-label"><span class="when-closed">펼치기 ⌄</span><span class="when-open">숨기기 ⌃</span></span></summary>
-    <div class="sharebody">
-    <div id="syncStatus" class="syncstatus" role="status" aria-live="polite">일정을 불러오는 중입니다.</div>
-    <div class="sharetools">
-      <button class="btn primary" id="shareBtn">가족에게 공유</button>
-      <button class="btn" id="importBtn" hidden>이 기기의 이전 수정 가져오기</button>
-    </div>
-    <p class="smallnote" id="modeNote"></p>
-    </div>
-  </details>
+  <button class="trip-note" id="noteButton" aria-label="한 줄 메모 수정"><span class="note-label">메모</span><span id="noteText">가족과 공유할 한 줄 메모를 남겨보세요.</span><span aria-hidden="true">✎</span></button>
   <p class="smallnote" id="storageWarning" role="alert" hidden>이 기기에 임시 저장하지 못했습니다. 온라인 저장 완료를 확인하기 전에는 창을 닫지 마세요.</p>
   <div class="topcard">
     <div class="progressrow"><span id="overallLabel">전체 진척도</span><strong id="overallText">0%</strong></div>
@@ -129,6 +120,17 @@ button:disabled{opacity:.5;cursor:default}
   <main id="content"></main>
   <details class="footerhint"><summary>추천 일정 참고 안내</summary><p>이동·관람 시간은 여유를 둔 계획값입니다. 운영 공지와 교통 상황에 따라 조정하세요.</p><a href="https://www.hallimpark.com/" target="_blank" rel="noopener">한림공원 공식 안내</a> · <a href="https://visitjeju.net/kr/detail/view?contentsid=CONT_000000000500697" target="_blank" rel="noopener">협재해수욕장 안내</a> · <a href="https://nexonmuseum.org" target="_blank" rel="noopener">넥슨뮤지엄 공식 안내</a></details>
   <div class="footerhint">Safari에서 홈 화면에 추가하면 앱처럼 사용할 수 있습니다. 가족용 링크로 연결하면 일정과 체크 상태가 함께 저장됩니다.</div>
+  <details class="sharebar" id="familySettings">
+    <summary><span>가족 공유</span><span class="disclosure-label"><span class="when-closed">펼치기 ⌄</span><span class="when-open">숨기기 ⌃</span></span></summary>
+    <div class="sharebody">
+    <div id="syncStatus" class="syncstatus" role="status" aria-live="polite">일정을 불러오는 중입니다.</div>
+    <div class="sharetools">
+      <button class="btn primary" id="shareBtn">가족에게 공유</button>
+      <button class="btn" id="importBtn" hidden>이 기기의 이전 수정 가져오기</button>
+    </div>
+    <p class="smallnote" id="modeNote"></p>
+    </div>
+  </details>
 </div>
 
 <dialog id="editDialog">
@@ -174,8 +176,14 @@ button:disabled{opacity:.5;cursor:default}
   <div class="field"><label for="packName" id="packNameLabel">준비물명</label><input id="packName" type="text" required maxlength="300" autocomplete="off"></div>
   <div class="actions"><button class="btn danger" id="packDelete" type="button">삭제</button><button class="btn" id="packCancel" type="button">취소</button><button class="btn primary" type="submit">저장</button></div>
 </form></dialog>
-<script src="./defaults.js?v=7"></script>
-<script src="./sync.js?v=7"></script>
-<script src="./app.js?v=7"></script>
+<dialog id="noteDialog" aria-labelledby="noteTitle"><form class="modal" id="noteForm">
+  <h3 id="noteTitle">한 줄 메모</h3>
+  <div class="field"><label for="noteInput">가족과 공유할 메모</label><input id="noteInput" type="text" maxlength="300" placeholder="예: 출발 전 냉장고에 있는 간식 챙기기" autocomplete="off"></div>
+  <p class="smallnote">빈칸으로 저장하면 메모가 지워집니다.</p>
+  <div class="actions"><button class="btn" id="noteCancel" type="button">취소</button><button class="btn primary" type="submit">저장</button></div>
+</form></dialog>
+<script src="./defaults.js?v=8"></script>
+<script src="./sync.js?v=8"></script>
+<script src="./app.js?v=8"></script>
 </body>
 </html>

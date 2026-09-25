@@ -29,6 +29,7 @@ function valid(doc){
    }
   }
  }
+ if(doc.note!==undefined&&(typeof doc.note!=="string"||doc.note.length>300||/[\r\n]/.test(doc.note)))return false;
  return true;
 }
 Deno.serve(async req=>{
@@ -61,6 +62,7 @@ Deno.serve(async req=>{
   doc.packing={groups:packing.groups.map(g=>({id:g.id,name:g.name,items:g.items.map(i=>({id:i.id,title:i.title,done:i.done}))}))};
   const shopping=input.document.shopping||row.document.shopping||DEFAULT_SHOPPING;
   doc.shopping={groups:shopping.groups.map(g=>({id:g.id,name:g.name,items:g.items.map(i=>({id:i.id,title:i.title,done:i.done}))}))};
+  doc.note=input.document.note!==undefined?input.document.note:(row.document.note||"");
   const updated=await fetch(dburl+"&version=eq."+input.version+"&select=document,version,updated_at",{method:"PATCH",headers:{...dbheaders,Prefer:"return=representation"},body:JSON.stringify({document:doc,version:input.version+1,updated_at:new Date().toISOString()})});
   if(!updated.ok)return reply(503,{error:"storage_unavailable"});
   const result=await updated.json();if(result.length!==1)return reply(409,{error:"conflict"});
