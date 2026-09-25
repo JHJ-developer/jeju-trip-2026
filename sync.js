@@ -7,6 +7,26 @@
     const keys=Object.keys(a);return keys.length===Object.keys(b).length&&keys.every(k=>Object.prototype.hasOwnProperty.call(b,k)&&equal(a[k],b[k]));
   };
   const fields=['start','end','title','detail','done'];
+  const DEFAULT_PACKING={groups:[{id:'pack-ayoon',name:'아윤이짐',items:[{id:'pack-pajamas',title:'잠옷',done:false},{id:'pack-toys',title:'장난감',done:false}]},{id:'pack-common',name:'공통',items:[{id:'pack-toothbrushes',title:'칫솔 3개',done:false}]}]};
+  const packingOf=doc=>doc.packing||DEFAULT_PACKING;
+  function mergePackingRecords(base,local,remote,group,choice,conflicts){
+    let result=copy(remote);
+    for(const id of new Set([...base,...local].map(x=>x.id))){
+      const before=base.find(x=>x.id===id),mine=local.find(x=>x.id===id),theirs=result.find(x=>x.id===id);
+      if(equal(before,mine))continue;
+      const conflict=field=>{conflicts.push({title:(mine||theirs||before).name||(mine||theirs||before).title,field,mine:mine||null,theirs:theirs||null});return choice==='mine';};
+      if(!before){if(!theirs)result.push(copy(mine));else if(!equal(mine,theirs)&&conflict('준비물 추가'))Object.assign(theirs,copy(mine));}
+      else if(!mine){if(theirs&&(equal(before,theirs)||conflict('준비물 삭제')))result=result.filter(x=>x.id!==id);}
+      else if(!theirs){if(conflict('삭제된 준비물'))result.push(copy(mine));}
+      else{
+        for(const key of group?['name']:['title','done'])if(mine[key]!==before[key]){
+          if(theirs[key]===before[key]||theirs[key]===mine[key]||conflict(key==='name'?'그룹명':key==='done'?'챙김 체크':'준비물명'))theirs[key]=mine[key];
+        }
+        if(group)theirs.items=mergePackingRecords(before.items,mine.items,theirs.items,false,choice,conflicts);
+      }
+    }
+    return result;
+  }
 
   // Three-way merge: only locally changed fields are applied to the latest document.
   function merge(base,local,remote,choice){
@@ -42,6 +62,9 @@
           }
         }
       }
+    }
+    if(base.packing||local.packing||remote.packing){
+      document.packing={groups:mergePackingRecords(packingOf(base).groups,packingOf(local).groups,packingOf(remote).groups,true,choice,conflicts)};
     }
     return {document,conflicts};
   }
@@ -101,7 +124,7 @@
       finally{this.busy=false;this.emit();}
     }
   }
-  const api={merge,SyncEngine,copy,equal};
+  const api={merge,SyncEngine,copy,equal,DEFAULT_PACKING,packingOf};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   else root.FamilySync=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

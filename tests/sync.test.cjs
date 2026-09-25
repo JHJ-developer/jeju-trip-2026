@@ -2,6 +2,20 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {merge,SyncEngine,copy}=require('../sync.js');
 const doc={days:[{id:'day1',label:'1일차',subtitle:'',items:[{id:'one',start:'09:00',end:'10:00',title:'기존',detail:'메모',done:false},{id:'two',start:'11:00',end:'12:00',title:'둘째',detail:'',done:false}]}]};
+test('packing initializes from an old document and keeps trip edits separate',()=>{
+ const mine=copy(doc),remote=copy(doc);mine.packing=copy(require('../sync.js').DEFAULT_PACKING);mine.packing.groups[0].items[0].done=true;remote.days[0].items[0].title='가족 일정';
+ const result=merge(doc,mine,remote);assert.equal(result.conflicts.length,0);assert.equal(result.document.packing.groups[0].items[0].done,true);assert.equal(result.document.days[0].items[0].title,'가족 일정');
+});
+test('packing group rename, another item check, and new groups merge',()=>{
+ const base={...copy(doc),packing:copy(require('../sync.js').DEFAULT_PACKING)},mine=copy(base),remote=copy(base);
+ mine.packing.groups[0].name='아윤이 가방';mine.packing.groups.push({id:'new-group',name:'아빠짐',items:[]});remote.packing.groups[0].items[0].done=true;
+ const result=merge(base,mine,remote);assert.equal(result.conflicts.length,0);assert.equal(result.document.packing.groups[0].name,'아윤이 가방');assert.equal(result.document.packing.groups[0].items[0].done,true);assert.equal(result.document.packing.groups.length,3);
+});
+test('packing group deletion conflicts with concurrent item edits; empty list stays empty',()=>{
+ const base={...copy(doc),packing:copy(require('../sync.js').DEFAULT_PACKING)},mine=copy(base),remote=copy(base);mine.packing.groups.shift();remote.packing.groups[0].items[0].done=true;
+ assert.equal(merge(base,mine,remote).conflicts.length,1);assert.equal(merge(base,mine,remote,'mine').document.packing.groups.length,1);assert.equal(merge(base,mine,remote,'family').document.packing.groups.length,2);
+ mine.packing.groups=[];assert.equal(merge(base,mine,base).document.packing.groups.length,0);
+});
 test('merges different fields and items without losing either edit',()=>{
  const mine=copy(doc),theirs=copy(doc);mine.days[0].items[0].title='내 제목';theirs.days[0].items[0].done=true;theirs.days[0].items[1].detail='가족 메모';
  const result=merge(doc,mine,theirs);assert.equal(result.conflicts.length,0);assert.equal(result.document.days[0].items[0].title,'내 제목');assert.equal(result.document.days[0].items[0].done,true);assert.equal(result.document.days[0].items[1].detail,'가족 메모');
