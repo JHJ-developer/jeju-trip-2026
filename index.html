@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#182132">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="제주여행">
+<link rel="manifest" href="manifest.webmanifest">
+<title>제주 가족여행 플래너</title>
+<style>
+:root{--bg:#f5f7fa;--card:#fff;--text:#182132;--muted:#717b8c;--line:#e2e6ec;--accent:#182132;--soft:#edf1f5;--danger:#b42318}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;-webkit-text-size-adjust:100%}
+button,input,textarea{font:inherit}
+.app{max-width:900px;margin:auto;padding:20px 14px 110px}
+h1{margin:0;font-size:27px;letter-spacing:-.8px}
+.sub{margin-top:7px;color:var(--muted);font-size:14px;line-height:1.55}
+.topcard{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;margin:18px 0 12px;position:sticky;top:8px;z-index:20;box-shadow:0 6px 18px rgba(0,0,0,.05)}
+.progressrow{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:7px}
+.progress{height:10px;background:#e7eaf0;border-radius:999px;overflow:hidden}
+.progress>div{height:100%;background:var(--accent);width:0;transition:.2s}
+.tabs{display:flex;gap:8px;overflow-x:auto;padding:4px 0 14px}
+.tab{flex:0 0 auto;border:1px solid var(--line);background:#fff;padding:10px 14px;border-radius:999px;font-weight:750}
+.tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.daycard{background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:14px}
+.dayhead{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:6px}
+.dayhead h2{font-size:20px;margin:0}
+.daymeta{font-size:13px;color:var(--muted);line-height:1.5}
+.dayprogress{font-size:12px;background:var(--soft);padding:5px 8px;border-radius:999px;white-space:nowrap}
+.item{display:grid;grid-template-columns:30px 104px 1fr 38px;gap:8px;align-items:start;padding:13px 0;border-top:1px solid var(--line)}
+.item input[type=checkbox]{width:23px;height:23px;accent-color:var(--accent);margin-top:1px}
+.time{font-weight:800;font-size:13px;line-height:1.45}
+.title{font-weight:800;line-height:1.45}
+.detail{font-size:13px;color:var(--muted);line-height:1.55;margin-top:3px}
+.item.done .time,.item.done .title,.item.done .detail{opacity:.45;text-decoration:line-through}
+.iconbtn{border:1px solid var(--line);background:#fff;width:36px;height:36px;border-radius:10px}
+.addbtn{width:100%;border:1px dashed #adb5c0;background:#fafbfc;padding:12px;border-radius:12px;font-weight:800;margin-top:8px}
+dialog{border:0;border-radius:18px;padding:0;max-width:520px;width:calc(100% - 28px);box-shadow:0 20px 60px rgba(0,0,0,.25)}
+dialog::backdrop{background:rgba(0,0,0,.38)}
+.modal{padding:18px}
+.modal h3{margin:0 0 14px;font-size:20px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field{margin-bottom:11px}
+.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+.field input,.field textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px;background:#fff}
+.field textarea{min-height:90px;resize:vertical}
+.actions{display:flex;justify-content:flex-end;gap:8px;margin-top:15px}
+.btn{border:1px solid var(--line);background:#fff;padding:10px 13px;border-radius:10px;font-weight:750}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.danger{color:var(--danger)}
+.footerhint{font-size:12px;color:var(--muted);line-height:1.5;margin-top:14px}
+@media(max-width:640px){
+ .app{padding:18px 12px 110px}
+ .item{grid-template-columns:28px 86px 1fr 36px;gap:7px}
+ .time{font-size:12px}
+ .title{font-size:14px}
+ .detail{font-size:12.5px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>제주 가족여행 플래너</h1>
+  <div class="sub">2026.10.26 ~ 10.30 · 그랜드 하얏트 제주<br>렌터카 10/26 12:30 대여 · 10/30 11:30 반납</div>
+
+  <div class="topcard">
+    <div class="progressrow"><span>전체 진척도</span><strong id="overallText">0%</strong></div>
+    <div class="progress"><div id="overallBar"></div></div>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+  <main id="content"></main>
+  <div class="footerhint">Safari에서 홈 화면에 추가하면 앱처럼 사용할 수 있습니다. 수정한 일정과 체크 상태는 이 기기의 브라우저에 저장됩니다.</div>
+</div>
+
+<dialog id="editDialog">
+  <form method="dialog" class="modal" id="editForm">
+    <h3 id="modalTitle">일정 수정</h3>
+    <div class="grid2">
+      <div class="field"><label>시작시각</label><input type="time" id="startInput" required></div>
+      <div class="field"><label>종료시각</label><input type="time" id="endInput" required></div>
+    </div>
+    <div class="field"><label>일정명</label><input type="text" id="titleInput" required></div>
+    <div class="field"><label>메모</label><textarea id="detailInput"></textarea></div>
+    <div class="actions">
+      <button type="button" class="btn danger" id="deleteBtn">삭제</button>
+      <button type="button" class="btn" id="cancelBtn">취소</button>
+      <button type="submit" class="btn primary">저장</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const DEFAULT_DATA = {"days": [{"id": "day1", "label": "1일차 · 10/26", "subtitle": "김포 → 제주 · 첫 비행 / 제주공항 점심 / 렌터카 / 장보기 / 체크인", "items": [{"id": "d1-1", "start": "08:00", "end": "08:20", "title": "김포공항 예약주차장 도착", "detail": "차량 주차 후 짐 정리. 서두르지 않고 국내선 청사로 이동.", "done": false}, {"id": "d1-2", "start": "08:20", "end": "08:40", "title": "체크인·수하물 위탁", "detail": "큰 짐은 먼저 맡기고 기내에는 아윤이 용품 위주로 최소화.", "done": false}, {"id": "d1-3", "start": "08:40", "end": "09:05", "title": "공항·비행기 구경", "detail": "첫 탑승 분위기에 천천히 익숙해지기.", "done": false}, {"id": "d1-4", "start": "09:05", "end": "09:20", "title": "보안검색 통과", "detail": "탑승구 안쪽으로 여유 있게 이동.", "done": false}, {"id": "d1-5", "start": "09:20", "end": "09:35", "title": "탑승구 주변 간식·비행기 구경", "detail": "스티커 → 간식 → 영상처럼 놀거리를 순서대로 사용.", "done": false}, {"id": "d1-6", "start": "09:35", "end": "10:00", "title": "마지막 화장실·탑승 준비", "detail": "이륙 때 귀 불편함 대비 물·빨대컵·작은 간식 준비.", "done": false}, {"id": "d1-7", "start": "10:00", "end": "11:10", "title": "김포 → 제주 출발 ✈️", "detail": "상승 시 물이나 간식으로 자연스럽게 삼키기 유도.", "done": false}, {"id": "d1-8", "start": "11:10", "end": "11:40", "title": "제주공항 도착·수하물 수령", "detail": "수하물 수령 후 공항 안에서 점심 준비.", "done": false}, {"id": "d1-9", "start": "11:40", "end": "12:15", "title": "제주공항에서 점심", "detail": "국수·밥·돈가스처럼 아윤이도 먹기 쉬운 메뉴 우선.", "done": false}, {"id": "d1-10", "start": "12:15", "end": "12:30", "title": "렌터카 셔틀 탑승 준비", "detail": "식사를 마치고 업체 셔틀 승차장으로 이동.", "done": false}, {"id": "d1-11", "start": "12:30", "end": "13:10", "title": "렌터카 인수", "detail": "카시트 고정, 차량 외관·경고등·연료 반납 조건 확인.", "done": false}, {"id": "d1-12", "start": "13:20", "end": "14:20", "title": "대형마트 장보기", "detail": "물·간식·과일·생활용품 구매.", "done": false}, {"id": "d1-13", "start": "14:40", "end": "15:00", "title": "그랜드 하얏트 제주 도착", "detail": "짐 정리 후 체크인 준비.", "done": false}, {"id": "d1-14", "start": "15:00", "end": "16:30", "title": "체크인·객실 휴식", "detail": "객실 정리 후 낮잠·휴식.", "done": false}, {"id": "d1-15", "start": "16:40", "end": "17:40", "title": "도두·이호테우 짧은 산책", "detail": "아윤이 컨디션이 좋을 때만. 피곤하면 생략.", "done": false}, {"id": "d1-16", "start": "18:10", "end": "18:30", "title": "호텔 복귀", "detail": "저녁 전 잠깐 휴식.", "done": false}, {"id": "d1-17", "start": "18:30", "end": "19:40", "title": "호텔 저녁", "detail": "피자·파스타 등 편한 메뉴 우선.", "done": false}, {"id": "d1-18", "start": "20:00", "end": "21:00", "title": "목욕·취침 준비", "detail": "첫날은 일찍 마무리.", "done": false}]}, {"id": "day2", "label": "2일차 · 10/27", "subtitle": "아쿠아플라넷 DAY", "items": [{"id": "d2-1", "start": "07:20", "end": "08:00", "title": "호텔 조식", "detail": "", "done": false}, {"id": "d2-2", "start": "08:15", "end": "09:20", "title": "그랜드 하얏트 출발", "detail": "물·간식·여벌옷·아이 용품 챙기기.", "done": false}, {"id": "d2-3", "start": "09:20", "end": "09:30", "title": "아쿠아플라넷 제주 도착", "detail": "오픈 시간에 맞춰 입장 준비.", "done": false}, {"id": "d2-4", "start": "09:30", "end": "12:00", "title": "아쿠아플라넷 관람", "detail": "수족관·메인 수조·공연/특별전.", "done": false}, {"id": "d2-5", "start": "12:10", "end": "13:10", "title": "점심 · 돈가스/우동", "detail": "아이와 먹기 쉬운 메뉴 우선.", "done": false}, {"id": "d2-6", "start": "13:20", "end": "14:00", "title": "낮잠/차 안 휴식", "detail": "잠들면 깨우지 않기. 오후 일정은 줄여도 됨.", "done": false}, {"id": "d2-7", "start": "14:10", "end": "15:10", "title": "섭지코지 산책", "detail": "30~60분. 끝까지 완주하지 않아도 됨.", "done": false}, {"id": "d2-8", "start": "15:20", "end": "16:10", "title": "카페·간식", "detail": "장거리 복귀 전 휴식.", "done": false}, {"id": "d2-9", "start": "16:15", "end": "17:30", "title": "호텔로 이동", "detail": "", "done": false}, {"id": "d2-10", "start": "17:30", "end": "18:30", "title": "호텔 복귀·휴식", "detail": "", "done": false}, {"id": "d2-11", "start": "18:30", "end": "19:30", "title": "호텔 저녁", "detail": "피자·파스타 또는 푸드코트 등 간단히.", "done": false}]}]};
+const KEY = "jejuTripPWA_v1";
+let data = load();
+let active = data.days[0].id;
+let editing = null;
+
+function clone(x){return JSON.parse(JSON.stringify(x));}
+function load(){try{const x=localStorage.getItem(KEY);return x?JSON.parse(x):clone(DEFAULT_DATA)}catch(e){return clone(DEFAULT_DATA)}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(data))}catch(e){}}
+function uid(){return "i-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,7)}
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]))}
+function pct(arr){return arr.length?Math.round(arr.filter(x=>x.done).length/arr.length*100):0}
+function allItems(){return data.days.flatMap(d=>d.items)}
+function sortDay(d){d.items.sort((a,b)=>(a.start||"").localeCompare(b.start||"")||(a.end||"").localeCompare(b.end||""))}
+
+function renderTabs(){
+  const el=document.getElementById("tabs");
+  el.innerHTML=data.days.map(d=>`<button class="tab ${active===d.id?"active":""}" data-id="${d.id}">${esc(d.label)}</button>`).join("");
+  el.querySelectorAll("button").forEach(b=>b.onclick=()=>{active=b.dataset.id;render();});
+}
+
+function render(){
+  renderTabs();
+  const d=data.days.find(x=>x.id===active);
+  sortDay(d);
+  const p=pct(d.items);
+  document.getElementById("content").innerHTML=`
+    <section class="daycard">
+      <div class="dayhead">
+        <div><h2>${esc(d.label)}</h2><div class="daymeta">${esc(d.subtitle||"")}</div></div>
+        <span class="dayprogress">${p}%</span>
+      </div>
+      ${d.items.map(i=>`
+        <div class="item ${i.done?"done":""}">
+          <input type="checkbox" data-check="${i.id}" ${i.done?"checked":""}>
+          <div class="time">${esc(i.start)}<br>~ ${esc(i.end)}</div>
+          <div><div class="title">${esc(i.title)}</div>${i.detail?`<div class="detail">${esc(i.detail)}</div>`:""}</div>
+          <button class="iconbtn" data-edit="${i.id}" aria-label="일정 수정">✎</button>
+        </div>`).join("")}
+      <button class="addbtn" id="addBtn">＋ 일정 추가</button>
+    </section>`;
+  document.querySelectorAll("[data-check]").forEach(cb=>cb.onchange=()=>{
+    const i=d.items.find(x=>x.id===cb.dataset.check); i.done=cb.checked; save(); render();
+  });
+  document.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>openEdit(d.id,b.dataset.edit));
+  document.getElementById("addBtn").onclick=()=>openAdd(d.id);
+  const op=pct(allItems());
+  document.getElementById("overallText").textContent=op+"%";
+  document.getElementById("overallBar").style.width=op+"%";
+}
+
+const dlg=document.getElementById("editDialog");
+const form=document.getElementById("editForm");
+const s=document.getElementById("startInput"), e=document.getElementById("endInput"), t=document.getElementById("titleInput"), m=document.getElementById("detailInput");
+const del=document.getElementById("deleteBtn");
+function openEdit(dayId,itemId){
+  const d=data.days.find(x=>x.id===dayId), i=d.items.find(x=>x.id===itemId);
+  editing={mode:"edit",dayId,itemId};
+  document.getElementById("modalTitle").textContent="일정 수정";
+  s.value=i.start;e.value=i.end;t.value=i.title;m.value=i.detail||"";del.style.display="";
+  dlg.showModal();
+}
+function openAdd(dayId){
+  editing={mode:"add",dayId};
+  document.getElementById("modalTitle").textContent="새 일정 추가";
+  s.value="";e.value="";t.value="";m.value="";del.style.display="none";
+  dlg.showModal();
+}
+document.getElementById("cancelBtn").onclick=()=>dlg.close();
+del.onclick=()=>{
+  if(!editing||editing.mode!=="edit")return;
+  if(!confirm("이 일정을 삭제할까요?"))return;
+  const d=data.days.find(x=>x.id===editing.dayId);
+  d.items=d.items.filter(x=>x.id!==editing.itemId);
+  save();dlg.close();render();
+};
+form.addEventListener("submit",ev=>{
+  ev.preventDefault();
+  if(e.value<s.value){alert("종료시각이 시작시각보다 빠릅니다.");return;}
+  const d=data.days.find(x=>x.id===editing.dayId);
+  if(editing.mode==="edit"){
+    const i=d.items.find(x=>x.id===editing.itemId);
+    Object.assign(i,{start:s.value,end:e.value,title:t.value.trim(),detail:m.value.trim()});
+  } else {
+    d.items.push({id:uid(),start:s.value,end:e.value,title:t.value.trim(),detail:m.value.trim(),done:false});
+  }
+  save();dlg.close();render();
+});
+
+if("serviceWorker" in navigator) window.addEventListener("load",()=>navigator.serviceWorker.register("./service-worker.js"));
+render();
+</script>
+</body>
+</html>

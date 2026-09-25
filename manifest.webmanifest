@@ -1,0 +1,8 @@
+{
+  "name": "제주 가족여행 플래너",
+  "short_name": "제주여행",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f5f7fa",
+  "theme_color": "#182132"
+}
