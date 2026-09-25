@@ -1,7 +1,11 @@
 (function(root){
   'use strict';
   const copy=x=>JSON.parse(JSON.stringify(x));
-  const equal=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+  const equal=(a,b)=>{
+    if(a===b)return true;
+    if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
+    const keys=Object.keys(a);return keys.length===Object.keys(b).length&&keys.every(k=>Object.prototype.hasOwnProperty.call(b,k)&&equal(a[k],b[k]));
+  };
   const fields=['start','end','title','detail','done'];
 
   // Three-way merge: only locally changed fields are applied to the latest document.

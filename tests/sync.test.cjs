@@ -15,6 +15,11 @@ test('add and delete retries are idempotent',()=>{
  const mine=copy(doc);mine.days[0].items.shift();mine.days[0].items.push({id:'new',start:'',end:'',title:'새 일정',detail:'',done:false});
  assert.deepEqual(merge(doc,mine,mine).document,mine);assert.equal(merge(doc,mine,mine).conflicts.length,0);
 });
+test('JSONB object key reordering does not turn an acknowledged addition into a conflict',()=>{
+ const mine=copy(doc);mine.days[0].items.push({id:'new',start:'',end:'',title:'추가',detail:'',done:false});
+ const remote=copy(mine);remote.days[0].items[2]={done:false,title:'추가',id:'new',detail:'',end:'',start:''};
+ assert.equal(merge(doc,mine,remote).conflicts.length,0);
+});
 test('concurrent start/end edits cannot create an invalid time range',()=>{
  const mine=copy(doc),theirs=copy(doc);mine.days[0].items[0].end='09:30';theirs.days[0].items[0].start='09:45';
  const result=merge(doc,mine,theirs);assert.equal(result.conflicts.length,1);assert.equal(result.conflicts[0].field,'시간');
