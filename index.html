@@ -78,6 +78,8 @@ dialog::backdrop{background:rgba(0,0,0,.38)}
 .packing-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
 .packing-head h2{margin:0;font-size:20px}.packing-head p{margin:4px 0 0;font-size:14px;color:var(--muted)}
 .pack-group-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}.pack-group-head h3{flex:1;margin:0;font-size:18px}
+.pack-filter{display:flex;align-items:center;gap:8px;margin:0 0 14px;min-height:44px;font-size:14px}.pack-filter input{width:20px;height:20px;accent-color:var(--accent)}
+.pack-group summary{display:flex;align-items:center;gap:10px;cursor:pointer;min-height:44px;list-style:none;font-weight:750}.pack-group summary::-webkit-details-marker{display:none}.pack-group summary>span:first-child{flex:1}.pack-group summary::after{content:"⌄"}.pack-group[open] summary::after{content:"⌃"}.pack-group summary:focus-visible{outline:3px solid #3b82f6}.pack-group-tools{display:flex;justify-content:flex-end;margin:8px 0}.pack-group{padding:10px 16px}
 .pack-item{display:grid;grid-template-columns:26px minmax(0,1fr) 38px;gap:10px;align-items:center;border-top:1px solid var(--line);padding:10px 0}
 .pack-item input{width:23px;height:23px;accent-color:var(--accent);margin:0}.pack-item label{font-size:16px;overflow-wrap:anywhere;padding:8px 0}
 .pack-item.done label{color:var(--muted);text-decoration:line-through}.pack-empty{color:var(--muted);font-size:14px;margin:14px 0}
@@ -121,7 +123,7 @@ button:disabled{opacity:.5;cursor:default}
     <div class="progress"><div id="overallBar"></div></div>
   </div>
 
-  <div class="footerhint">준비물 · 1~5일차 — 탭을 옆으로 밀어 선택하세요. 3~5일차는 추천 일정이며, 마지막 날 항공편 시간은 확인 후 입력해 주세요.</div>
+  <div class="footerhint">사야할 것 · 준비물 · 1~5일차 — 탭을 옆으로 밀어 선택하세요. 3~5일차는 추천 일정이며, 마지막 날 항공편 시간은 확인 후 입력해 주세요.</div>
   <div id="updateNotice" class="footerhint" hidden>새 버전이 준비되었습니다. 수정 내용을 저장한 뒤 새로고침해 주세요.</div>
   <div class="tabs" id="tabs"></div>
   <main id="content"></main>
@@ -172,8 +174,8 @@ button:disabled{opacity:.5;cursor:default}
   <div class="field"><label for="packName" id="packNameLabel">준비물명</label><input id="packName" type="text" required maxlength="300" autocomplete="off"></div>
   <div class="actions"><button class="btn danger" id="packDelete" type="button">삭제</button><button class="btn" id="packCancel" type="button">취소</button><button class="btn primary" type="submit">저장</button></div>
 </form></dialog>
-<script src="./defaults.js?v=6"></script>
-<script src="./sync.js?v=6"></script>
-<script src="./app.js?v=6"></script>
+<script src="./defaults.js?v=7"></script>
+<script src="./sync.js?v=7"></script>
+<script src="./app.js?v=7"></script>
 </body>
 </html>

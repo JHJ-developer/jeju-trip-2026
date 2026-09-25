@@ -57,3 +57,12 @@ test('edits made while a save is in flight remain pending and are saved',async()
  let base=copy(a.document),next=copy(base);next.days[0].items[0].done=true;a.edit(base,next);const saving=a.run();await gate;
  base=copy(a.document);next=copy(base);next.days[0].items[1].detail='저장 중 수정';a.edit(base,next);release();await saving;assert.equal(a.dirty,false);assert.equal(api.state().document.days[0].items[1].detail,'저장 중 수정');
 });
+test('shopping checks merge with packing edits and concurrent purchases',()=>{
+ const {DEFAULT_SHOPPING,DEFAULT_PACKING}=require('../sync.js');
+ const base={...copy(doc),packing:copy(DEFAULT_PACKING),shopping:copy(DEFAULT_SHOPPING)},mine=copy(base),remote=copy(base);
+ mine.shopping.groups[0].items[0].done=true;
+ remote.shopping.groups[0].items[1].done=true;remote.packing.groups[0].items[0].done=true;
+ const result=merge(base,mine,remote);assert.equal(result.conflicts.length,0);
+ assert.ok(result.document.shopping.groups[0].items.every(i=>i.done));assert.equal(result.document.packing.groups[0].items[0].done,true);
+ const old=copy(base);delete old.shopping;assert.deepEqual(merge(old,old,result.document).document.shopping,result.document.shopping);
+});

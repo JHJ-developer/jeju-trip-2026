@@ -1,3 +1,4 @@
+const DEFAULT_SHOPPING={groups:[{id:'shopping-list',name:'구매 목록',items:[{id:'shop-suitcase',title:'여행캐리어',done:false},{id:'shop-kettle',title:'전기포트',done:false}]}]};
 const DEFAULT_PACKING={groups:[{id:'pack-ayoon',name:'아윤이짐',items:[{id:'pack-pajamas',title:'잠옷',done:false},{id:'pack-toys',title:'장난감',done:false}]},{id:'pack-common',name:'공통',items:[{id:'pack-toothbrushes',title:'칫솔 3개',done:false}]}]};
 const ORIGIN="https://jhj-developer.github.io";
 const headers={"Access-Control-Allow-Origin":ORIGIN,"Access-Control-Allow-Headers":"content-type,x-family-key","Access-Control-Allow-Methods":"GET,PUT,OPTIONS","Content-Type":"application/json","Cache-Control":"no-store","Vary":"Origin"};
@@ -16,9 +17,10 @@ function valid(doc){
    if(Boolean(i.start)!==Boolean(i.end)||i.end<i.start||typeof i.title!=="string"||!i.title.trim()||i.title.length>300||typeof i.detail!=="string"||i.detail.length>5000||typeof i.done!=="boolean")return false;
   }
  }
- if(doc.packing!==undefined){
-  if(!doc.packing||!Array.isArray(doc.packing.groups)||doc.packing.groups.length>30)return false;
-  for(const group of doc.packing.groups){
+ for(const scope of ["packing","shopping"]){
+ if(doc[scope]===undefined)continue;
+  if(!doc[scope]||!Array.isArray(doc[scope].groups)||doc[scope].groups.length>30)return false;
+  for(const group of doc[scope].groups){
    if(!group||typeof group.id!=="string"||!/^[a-zA-Z0-9-]{1,64}$/.test(group.id)||ids.has(group.id)||typeof group.name!=="string"||!group.name.trim()||group.name.length>100||!Array.isArray(group.items)||group.items.length>200)return false;
    ids.add(group.id);
    for(const item of group.items){
@@ -45,7 +47,7 @@ Deno.serve(async req=>{
   const rows=await auth.json();
   if(rows.length!==1)return reply(401,{error:"invalid_invite"});
   const row=rows[0];
-  if(req.method==="GET")return reply(200,{document:{...row.document,packing:row.document.packing||DEFAULT_PACKING},version:row.version,updated_at:row.updated_at});
+  if(req.method==="GET")return reply(200,{document:{...row.document,packing:row.document.packing||DEFAULT_PACKING,shopping:row.document.shopping||DEFAULT_SHOPPING},version:row.version,updated_at:row.updated_at});
   if(Number(req.headers.get("content-length")||0)>180000)return reply(413,{error:"too_large"});
   const reader=req.body?.getReader();if(!reader)return reply(400,{error:"body"});
   let bytes=0;const chunks=[];
@@ -57,6 +59,8 @@ Deno.serve(async req=>{
   // Old clients may omit packing. Preserve it while enforcing the same CAS version.
   const packing=input.document.packing||row.document.packing||DEFAULT_PACKING;
   doc.packing={groups:packing.groups.map(g=>({id:g.id,name:g.name,items:g.items.map(i=>({id:i.id,title:i.title,done:i.done}))}))};
+  const shopping=input.document.shopping||row.document.shopping||DEFAULT_SHOPPING;
+  doc.shopping={groups:shopping.groups.map(g=>({id:g.id,name:g.name,items:g.items.map(i=>({id:i.id,title:i.title,done:i.done}))}))};
   const updated=await fetch(dburl+"&version=eq."+input.version+"&select=document,version,updated_at",{method:"PATCH",headers:{...dbheaders,Prefer:"return=representation"},body:JSON.stringify({document:doc,version:input.version+1,updated_at:new Date().toISOString()})});
   if(!updated.ok)return reply(503,{error:"storage_unavailable"});
   const result=await updated.json();if(result.length!==1)return reply(409,{error:"conflict"});

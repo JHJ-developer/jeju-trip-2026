@@ -10,9 +10,10 @@ test('backend validates and persists packing, preserves it for old clients, and 
  const req=(method,body)=>new Request('https://test.invalid',{method,headers:{'x-family-key':'a'.repeat(64),'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
  const initial=await (await handler(req('GET'))).json();assert.equal(initial.document.packing.groups.length,2);
  initial.document.packing.groups[0].items[0].done=true;
- let response=await handler(req('PUT',{version:1,document:initial.document}));assert.equal(response.status,200);assert.equal(row.document.packing.groups[0].items[0].done,true);
- response=await handler(req('PUT',{version:2,document:{days:row.document.days}}));assert.equal(response.status,200);assert.equal(row.document.packing.groups[0].items[0].done,true);
+ assert.equal(initial.document.shopping.groups[0].items[0].title,"여행캐리어");initial.document.shopping.groups[0].items[0].done=true;
+ let response=await handler(req('PUT',{version:1,document:initial.document}));assert.equal(response.status,200);assert.equal(row.document.packing.groups[0].items[0].done,true);assert.equal(row.document.shopping.groups[0].items[0].done,true);
+ response=await handler(req('PUT',{version:2,document:{days:row.document.days}}));assert.equal(response.status,200);assert.equal(row.document.packing.groups[0].items[0].done,true);assert.equal(row.document.shopping.groups[0].items[0].done,true);
  response=await handler(req('PUT',{version:1,document:initial.document}));assert.equal(response.status,409);
  const bad=JSON.parse(JSON.stringify(row.document));bad.packing.groups[0].items[0].done='yes';assert.equal((await handler(req('PUT',{version:3,document:bad}))).status,400);
- bad.packing={groups:[]};response=await handler(req('PUT',{version:3,document:bad}));assert.equal(response.status,200);assert.equal(row.document.packing.groups.length,0);
+ bad.packing={groups:[]};bad.shopping.groups[0].items[0].done="yes";assert.equal((await handler(req("PUT",{version:3,document:bad}))).status,400);bad.shopping.groups[0].items[0].done=true;response=await handler(req('PUT',{version:3,document:bad}));assert.equal(response.status,200);assert.equal(row.document.packing.groups.length,0);
 });

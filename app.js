@@ -2,7 +2,7 @@
 const API='https://pvfvbosolqpqbmocwyrw.supabase.co/functions/v1/family-trip';
 const KEY='jejuTripPWA_v1', INVITE_KEY='jejuFamilyInvite_v1';
 const $=id=>document.getElementById(id);
-const {copy,equal,merge,SyncEngine,packingOf}=FamilySync;
+const {copy,equal,merge,SyncEngine,packingOf,shoppingOf}=FamilySync;
 const read=key=>{try{return JSON.parse(localStorage.getItem(key));}catch{return null;}};
 function write(key,value){try{localStorage.setItem(key,JSON.stringify(value));return true;}catch{$('storageWarning').hidden=false;return false;}}
 function validDocument(d){return d&&Array.isArray(d.days)&&d.days.length&&d.days.every(x=>typeof x.id==='string'&&Array.isArray(x.items));}
@@ -21,18 +21,23 @@ const CACHE_KEY=familyKey?'jejuFamilyCache_v1:'+familyKey:null;
 let cached=familyKey?read(CACHE_KEY):null;
 if(!cached||!validDocument(cached.base)||!validDocument(cached.document)||!Number.isInteger(cached.version))cached=null;
 let data=familyKey?(cached?copy(cached.document):{days:[]}):legacy;
-let active='packing', editing=null, engine=null, deferredImport=false;
+let active='shopping', editing=null, engine=null, deferredImport=false;
 const dlg=$('editDialog'), conflictDialog=$('conflictDialog'), packDlg=$('packDialog');
 let packEditing=null;
+const VIEW_KEY='jejuPackingView:'+ (familyKey||'local');
+const packingView=read(VIEW_KEY)||{closed:{},onlyUnpacked:false};
+const listOf=(doc,scope)=>scope==='shopping'?shoppingOf(doc):packingOf(doc);
 const s=$('startInput'),e=$('endInput'),t=$('titleInput'),m=$('detailInput');
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 const uid=()=>crypto.randomUUID();
 const pct=items=>items.length?Math.round(items.filter(i=>i.done).length/items.length*100):0;
 function render(){
-  if(active!=='packing'&&!data.days.some(d=>d.id===active))active='packing';
-  $('tabs').innerHTML=`<button class="tab ${active==='packing'?'active':''}" aria-pressed="${active==='packing'}" data-id="packing">준비물</button>`+data.days.map(d=>`<button class="tab ${active===d.id?'active':''}" aria-pressed="${active===d.id}" data-id="${esc(d.id)}">${esc(d.label)}</button>`).join('');
+  if(!['packing','shopping'].includes(active)&&!data.days.some(d=>d.id===active))active='shopping';
+  const tabScroll=$('tabs').scrollLeft;
+  $('tabs').innerHTML=`<button class="tab ${active==='shopping'?'active':''}" aria-pressed="${active==='shopping'}" data-id="shopping">사야할 것</button><button class="tab ${active==='packing'?'active':''}" aria-pressed="${active==='packing'}" data-id="packing">준비물</button>`+data.days.map(d=>`<button class="tab ${active===d.id?'active':''}" aria-pressed="${active===d.id}" data-id="${esc(d.id)}">${esc(d.label)}</button>`).join('');
   $('tabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{active=b.dataset.id;render();});
-  if(active==='packing'&&data.days.length){renderPacking();return;}
+  $('tabs').scrollLeft=tabScroll;
+  if(['packing','shopping'].includes(active)&&data.days.length){renderPacking(active);return;}
   $('overallLabel').textContent='여행 일정 진척도';
   const day=data.days.find(d=>d.id===active);
   if(!day){$('content').innerHTML='<p class="smallnote">가족 일정을 불러오는 중입니다. 연결 상태를 확인해 주세요.</p>';return;}
@@ -48,31 +53,38 @@ function render(){
   $('addBtn').onclick=()=>openEditor(day.id);
   const progress=pct(data.days.flatMap(d=>d.items));$('overallText').textContent=progress+'%';$('overallBar').style.width=progress+'%';
 }
-function renderPacking(){
-  const groups=packingOf(data).groups,items=groups.flatMap(g=>g.items),done=items.filter(i=>i.done).length;
+function renderPacking(scope='packing'){
+  const shopping=scope==='shopping',noun=shopping?'구매 항목':'준비물';
+  const groups=listOf(data,scope).groups,items=groups.flatMap(g=>g.items),done=items.filter(i=>i.done).length;
   const disabled=familyKey&&(!engine?.ready||engine?.errorStatus===401||!!engine?.pending);
-  $('overallLabel').textContent='준비물 챙김';$('overallText').textContent=done+' / '+items.length+'개';$('overallBar').style.width=pct(items)+'%';
-  $('content').innerHTML=`<div class="packing-head"><div><h2>준비물</h2><p>챙긴 물건을 체크해 주세요.</p></div><button class="btn" id="addPackGroup" ${disabled?'disabled':''}>＋ 그룹 추가</button></div>`+
-    groups.map(g=>`<section class="daycard"><div class="pack-group-head"><h3>${esc(g.name)}</h3><span class="dayprogress">${g.items.filter(i=>i.done).length} / ${g.items.length}</span><button class="iconbtn" data-pack-group="${esc(g.id)}" aria-label="${esc(g.name)} 그룹 수정" ${disabled?'disabled':''}>✎</button></div>
-      ${g.items.length?g.items.map(i=>`<div class="pack-item ${i.done?'done':''}"><input type="checkbox" id="check-${esc(i.id)}" data-pack-check="${esc(i.id)}" data-group="${esc(g.id)}" ${i.done?'checked':''} ${disabled?'disabled':''}><label for="check-${esc(i.id)}">${esc(i.title)}</label><button class="iconbtn" data-pack-edit="${esc(i.id)}" data-group="${esc(g.id)}" aria-label="${esc(i.title)} 준비물 수정" ${disabled?'disabled':''}>✎</button></div>`).join(''):'<p class="pack-empty">이 그룹에 준비물을 추가해 주세요.</p>'}
-      <button class="addbtn" data-pack-add="${esc(g.id)}" ${disabled?'disabled':''}>＋ 준비물 추가</button></section>`).join('')+
-    (!groups.length?'<p class="pack-empty">그룹을 추가해 준비물을 정리해 보세요.</p>':'');
-  $('addPackGroup').onclick=()=>openPack('group');
+  $('overallLabel').textContent=shopping?'구매 완료':'준비물 챙김';$('overallText').textContent=done+' / '+items.length+'개';$('overallBar').style.width=pct(items)+'%';
+  $('content').innerHTML=`<div class="packing-head"><div><h2>${shopping?'사야할 것':'준비물'}</h2><p>${shopping?'구매한 물건을 체크해 주세요.':'챙긴 물건을 체크해 주세요.'}</p></div>${shopping?'':`<button class="btn" id="addPackGroup" ${disabled?'disabled':''}>＋ 그룹 추가</button>`}</div>`+
+    (shopping?'':`<label class="pack-filter"><input type="checkbox" id="onlyUnpacked" ${packingView.onlyUnpacked?'checked':''}> 미챙김만 보기</label>`)+
+    groups.map(g=>{
+      const visible=shopping||!packingView.onlyUnpacked?g.items:g.items.filter(i=>!i.done);
+      const rows=visible.map(i=>`<div class="pack-item ${i.done?'done':''}"><input type="checkbox" id="check-${esc(i.id)}" data-pack-check="${esc(i.id)}" data-group="${esc(g.id)}" ${i.done?'checked':''} ${disabled?'disabled':''}><label for="check-${esc(i.id)}">${esc(i.title)}</label><button class="iconbtn" data-pack-edit="${esc(i.id)}" data-group="${esc(g.id)}" aria-label="${esc(i.title)} ${noun} 수정" ${disabled?'disabled':''}>✎</button></div>`).join('')||`<p class="pack-empty">${g.items.length?'모두 챙겼어요.':noun+'을 추가해 주세요.'}</p>`;
+      const body=rows+`<button class="addbtn" data-pack-add="${esc(g.id)}" ${disabled?'disabled':''}>＋ ${noun} 추가</button>`;
+      return shopping?`<section class="daycard">${body}</section>`:`<details class="daycard pack-group" data-pack-disclosure="${esc(g.id)}" ${packingView.closed[g.id]?'':'open'}><summary><span>${esc(g.name)}</span><span class="dayprogress">${g.items.filter(i=>i.done).length} / ${g.items.length}</span></summary><div class="pack-group-tools"><button class="btn" data-pack-group="${esc(g.id)}" ${disabled?'disabled':''}>그룹 수정</button></div>${body}</details>`;
+    }).join('')+(!groups.length?'<p class="pack-empty">그룹을 추가해 준비물을 정리해 보세요.</p>':'');
+  if($('addPackGroup'))$('addPackGroup').onclick=()=>openPack('group');
+  if($('onlyUnpacked'))$('onlyUnpacked').onchange=event=>{packingView.onlyUnpacked=event.target.checked;write(VIEW_KEY,packingView);render();};
+  $('content').querySelectorAll('[data-pack-disclosure]').forEach(el=>el.ontoggle=()=>{if(!el.isConnected)return;packingView.closed[el.dataset.packDisclosure]=!el.open;write(VIEW_KEY,packingView);});
   $('content').querySelectorAll('[data-pack-group]').forEach(b=>b.onclick=()=>openPack('group',b.dataset.packGroup));
-  $('content').querySelectorAll('[data-pack-add]').forEach(b=>b.onclick=()=>openPack('item',b.dataset.packAdd));
-  $('content').querySelectorAll('[data-pack-edit]').forEach(b=>b.onclick=()=>openPack('item',b.dataset.group,b.dataset.packEdit));
+  $('content').querySelectorAll('[data-pack-add]').forEach(b=>b.onclick=()=>openPack('item',b.dataset.packAdd,undefined,scope));
+  $('content').querySelectorAll('[data-pack-edit]').forEach(b=>b.onclick=()=>openPack('item',b.dataset.group,b.dataset.packEdit,scope));
   $('content').querySelectorAll('[data-pack-check]').forEach(cb=>cb.onchange=()=>{
-    const base=copy(data),next=copy(data);next.packing=copy(packingOf(data));
-    next.packing.groups.find(g=>g.id===cb.dataset.group).items.find(i=>i.id===cb.dataset.packCheck).done=cb.checked;applyChange(base,next);
+    const base=copy(data),next=copy(data);next[scope]=copy(listOf(data,scope));
+    next[scope].groups.find(g=>g.id===cb.dataset.group).items.find(i=>i.id===cb.dataset.packCheck).done=cb.checked;applyChange(base,next);
   });
 }
-function openPack(kind,groupId,itemId){
-  const groups=packingOf(data).groups,group=groups.find(g=>g.id===groupId),item=group?.items.find(i=>i.id===itemId);
+function openPack(kind,groupId,itemId,scope='packing'){
+  const noun=scope==='shopping'?'구매 항목':'준비물';
+  const groups=listOf(data,scope).groups,group=groups.find(g=>g.id===groupId),item=group?.items.find(i=>i.id===itemId);
   if(kind==='group'&&!group&&groups.length>=30){alert('그룹은 30개까지 추가할 수 있습니다.');return;}
   if(kind==='item'&&!item&&group.items.length>=200){alert('그룹당 준비물은 200개까지 추가할 수 있습니다.');return;}
-  packEditing={kind,groupId,itemId,base:copy(data)};
-  $('packDialogTitle').textContent=kind==='group'?(group?'그룹 수정':'그룹 추가'):(item?'준비물 수정':group.name+' · 준비물 추가');
-  $('packNameLabel').textContent=kind==='group'?'그룹명':'준비물명';
+  packEditing={kind,groupId,itemId,scope,base:copy(data)};
+  $('packDialogTitle').textContent=kind==='group'?(group?'그룹 수정':'그룹 추가'):(item?noun+' 수정':noun+' 추가');
+  $('packNameLabel').textContent=kind==='group'?'그룹명':noun+'명';
   $('packName').maxLength=kind==='group'?100:300;$('packName').value=kind==='group'?(group?.name||''):(item?.title||'');
   $('packName').placeholder=kind==='group'?'예: 아윤이짐, 공통':'예: 칫솔 3개';$('packName').setCustomValidity('');
   $('packDelete').hidden=kind==='group'?!group:!item;packDlg.showModal();
@@ -82,19 +94,19 @@ $('packName').oninput=()=>$('packName').setCustomValidity('');
 $('packForm').addEventListener('submit',event=>{
   event.preventDefault();if(!packEditing)return;
   const name=$('packName').value.trim();if(!name){$('packName').setCustomValidity('이름을 입력해 주세요.');$('packName').reportValidity();return;}
-  const {kind,groupId,itemId,base}=packEditing,next=copy(base);next.packing=copy(packingOf(base));
-  const group=next.packing.groups.find(g=>g.id===groupId);
-  if(kind==='group'){if(group)group.name=name;else next.packing.groups.push({id:uid(),name,items:[]});}
+  const {kind,groupId,itemId,scope,base}=packEditing,next=copy(base);next[scope]=copy(listOf(base,scope));
+  const group=next[scope].groups.find(g=>g.id===groupId);
+  if(kind==='group'){if(group)group.name=name;else next[scope].groups.push({id:uid(),name,items:[]});}
   else if(itemId)group.items.find(i=>i.id===itemId).title=name;
   else group.items.push({id:uid(),title:name,done:false});
   packDlg.close();applyChange(base,next);
 });
 $('packDelete').onclick=()=>{
-  if(!packEditing)return;const {kind,groupId,itemId,base}=packEditing;
-  if(!confirm(kind==='group'?'이 그룹과 안에 있는 준비물을 모두 삭제할까요? 가족에게도 반영됩니다.':'이 준비물을 삭제할까요? 가족에게도 반영됩니다.'))return;
-  const next=copy(base);next.packing=copy(packingOf(base));
-  if(kind==='group')next.packing.groups=next.packing.groups.filter(g=>g.id!==groupId);
-  else{const group=next.packing.groups.find(g=>g.id===groupId);group.items=group.items.filter(i=>i.id!==itemId);}
+  if(!packEditing)return;const {kind,groupId,itemId,scope,base}=packEditing;
+  if(!confirm(kind==='group'?'이 그룹과 안에 있는 준비물을 모두 삭제할까요? 가족에게도 반영됩니다.':'이 항목을 삭제할까요? 가족에게도 반영됩니다.'))return;
+  const next=copy(base);next[scope]=copy(listOf(base,scope));
+  if(kind==='group')next[scope].groups=next[scope].groups.filter(g=>g.id!==groupId);
+  else{const group=next[scope].groups.find(g=>g.id===groupId);group.items=group.items.filter(i=>i.id!==itemId);}
   packDlg.close();applyChange(base,next);
 };
 function persistEngine(){
@@ -122,7 +134,7 @@ function updateStatus(){
   $('shareBtn').textContent=engine.errorStatus===401?'가족 링크 다시 연결':'가족에게 공유';
   $('importBtn').hidden=!engine.ready||!!engine.pending||engine.errorStatus===401||equal(legacy,DEFAULT_DATA)||!!read('jejuFamilyImported:'+familyKey);
 }
-function conflictValue(value){if(value===null)return '삭제';if(typeof value==='object'){if(value.name)return value.name+' ('+value.items.length+'개 준비물)';if(value.start===undefined)return value.title+' · '+(value.done?'챙김':'미챙김');return value.title+' / '+value.start+'~'+value.end+' / '+value.detail;}if(typeof value==='boolean')return value?'완료':'미완료';return value||'(비어 있음)';}
+function conflictValue(value){if(value===null)return '삭제';if(typeof value==='object'){if(value.name)return value.name+' ('+value.items.length+'개 항목)';if(value.start===undefined)return value.title+' · '+(value.done?'완료':'미완료');return value.title+' / '+value.start+'~'+value.end+' / '+value.detail;}if(typeof value==='boolean')return value?'완료':'미완료';return value||'(비어 있음)';}
 function showConflicts(conflicts){
   const names={name:'그룹명',start:'시작시각',end:'종료시각',title:'일정명',detail:'메모',done:'완료 체크'};
   $('conflictList').innerHTML=conflicts.map(c=>`<div class="conflictitem"><strong>${esc(c.title)} · ${esc(names[c.field]||c.field)}</strong><p>내 수정: ${esc(conflictValue(c.mine))}</p><p>가족 수정: ${esc(conflictValue(c.theirs))}</p></div>`).join('');
