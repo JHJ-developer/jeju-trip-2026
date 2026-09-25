@@ -18,7 +18,7 @@ GitHub Pages는 main 브랜치의 루트에서 배포합니다. Safari → 공�
 
 Supabase `family-trip` Edge Function은 256비트 초대 키의 SHA-256 해시를 확인한 뒤 서버에서만 데이터에 접근합니다. 테이블은 RLS가 켜져 있으며 공개 클라이언트 접근 정책이 없는 것이 의도된 설정입니다. 서비스 키는 서버 환경 변수에서만 사용합니다.
 
-서버 소스: `backend/family-trip.js`. 프런트엔드 연결 주소: `app.js`. 공유키와 실제 공유 일정은 저장소에 넣지 않습니다. 초대 링크 재발급 시 서버의 access_hash와 전달할 링크를 함께 교체합니다.
+서버 소스: `backend/family-trip.js`. 프런트엔드 연결 주소: `app.js`. 공유키와 실제 공유 일정은 저장소에 넣지 않습니다. `access_hash`의 기존 초대 링크는 보존하고, 승인된 추가 링크는 `additional_access_hash`로 연결할 수 있습니다. 새 링크 권한 부여는 소유자 확인 후 진행합니다.
 
 검증: `node --test tests/sync.test.cjs`. 실제 API 검증은 별도 테스트 일정으로 진행합니다.
 

@@ -24,7 +24,7 @@ Deno.serve(async req=>{
  const key=req.headers.get("x-family-key")||"";
  if(!/^[a-f0-9]{64}$/.test(key))return reply(401,{error:"invalid_invite"});
  const hash=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(key)))).map(b=>b.toString(16).padStart(2,"0")).join("");
- const dburl=Deno.env.get("SUPABASE_URL")+"/rest/v1/family_trips?access_hash=eq."+hash;
+ const dburl=Deno.env.get("SUPABASE_URL")+"/rest/v1/family_trips?or=(access_hash.eq."+hash+",additional_access_hash.eq."+hash+")";
  const secret=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
  const dbheaders={apikey:secret,Authorization:"Bearer "+secret,"Content-Type":"application/json"};
  try{
@@ -40,7 +40,7 @@ Deno.serve(async req=>{
   for(;;){const {done,value}=await reader.read();if(done)break;bytes+=value.length;if(bytes>180000){await reader.cancel();return reply(413,{error:"too_large"});}chunks.push(value);}
   const buffer=new Uint8Array(bytes);let offset=0;for(const chunk of chunks){buffer.set(chunk,offset);offset+=chunk.length;}
   let input;try{input=JSON.parse(new TextDecoder().decode(buffer));}catch{return reply(400,{error:"json"});}
-  if(!Number.isInteger(input.version)||!valid(input.document))return reply(400,{error:"invalid_document"});
+  if(!input||!Number.isInteger(input.version)||!valid(input.document))return reply(400,{error:"invalid_document"});
   const doc={days:input.document.days.map(d=>({id:d.id,label:d.label,subtitle:d.subtitle,items:d.items.map(i=>({id:i.id,start:i.start,end:i.end,title:i.title,detail:i.detail,done:i.done}))}))};
   const updated=await fetch(dburl+"&version=eq."+input.version+"&select=document,version,updated_at",{method:"PATCH",headers:{...dbheaders,Prefer:"return=representation"},body:JSON.stringify({document:doc,version:input.version+1,updated_at:new Date().toISOString()})});
   if(!updated.ok)return reply(503,{error:"storage_unavailable"});
