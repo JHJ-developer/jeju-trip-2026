@@ -45,8 +45,10 @@ function render(){
   $('noteButton').disabled=!!(familyKey&&(!engine?.ready||engine?.errorStatus===401||engine?.pending));
   if(!['packing','shopping'].includes(active)&&!data.days.some(d=>d.id===active))active='shopping';
   const tabScroll=$('tabs').scrollLeft;
+  const manageDaysButton=$('manageDaysBtn');
   $('tabs').innerHTML=`<button class="tab ${active==='shopping'?'active':''}" aria-pressed="${active==='shopping'}" data-id="shopping">사야할 것</button><button class="tab ${active==='packing'?'active':''}" aria-pressed="${active==='packing'}" data-id="packing">준비물</button>`+data.days.map(d=>`<button class="tab ${active===d.id?'active':''}" aria-pressed="${active===d.id}" data-id="${esc(d.id)}">${esc(d.label)}</button>`).join('');
-  $('tabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{active=b.dataset.id;render();});
+  $('tabs').append(manageDaysButton);
+  $('tabs').querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>{active=b.dataset.id;render();});
   $('tabs').scrollLeft=tabScroll;
   if(['packing','shopping'].includes(active)&&(!familyKey||engine?.ready)){renderPacking(active);return;}
   $('overallLabel').textContent='여행 일정 진척도';

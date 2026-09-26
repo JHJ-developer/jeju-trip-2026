@@ -65,7 +65,7 @@ dialog::backdrop{background:rgba(0,0,0,.38)}
 .appheader .sub{grid-column:1/-1;margin-top:0}
 .header-title{display:flex;gap:5px;align-items:center;min-width:0}.header-title h1{min-width:0;overflow-wrap:anywhere}.header-edit{flex-shrink:0;border:0;background:transparent;color:var(--muted);padding:4px;font-size:18px;min-width:32px}
 .editable-sub{display:block;width:100%;padding:4px 0;border:0;background:transparent;text-align:left;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--muted);font-size:14px;line-height:1.6}
-.planner-tools{display:flex;justify-content:flex-end;margin:8px 0}.manage-row{border-top:1px solid var(--line);padding:12px 0;display:flex;gap:10px;align-items:center}.manage-copy{min-width:0;flex:1;overflow-wrap:anywhere}.manage-copy strong{display:block}.manage-buttons{display:flex;gap:5px}.manage-buttons button{min-width:42px}.daymeta{white-space:pre-wrap}.day-tools{display:flex;gap:8px;align-items:center}.manage-empty{padding:20px 0;color:var(--muted)}
+.manage-tab{border-style:dashed;color:var(--muted)}.manage-row{border-top:1px solid var(--line);padding:12px 0;display:flex;gap:10px;align-items:center}.manage-copy{min-width:0;flex:1;overflow-wrap:anywhere}.manage-copy strong{display:block}.manage-buttons{display:flex;gap:5px}.manage-buttons button{min-width:42px}.daymeta{white-space:pre-wrap}.day-tools{display:flex;gap:8px;align-items:center}.manage-empty{padding:20px 0;color:var(--muted)}
 .header-sync{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:62px;min-height:58px;padding:5px!important;color:var(--text);font-size:12px;white-space:nowrap}
 .header-sync .sync-symbol{font-size:24px;line-height:1}
 .trip-note{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;margin:12px 0 0;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;text-align:left;color:var(--text);font-size:14px}.note-label{color:var(--muted);flex-shrink:0}#noteText{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.trip-note:focus-visible{outline:3px solid #3b82f6}
@@ -118,9 +118,8 @@ button:disabled{opacity:.5;cursor:default}
   </div>
 
   <div class="footerhint">탭을 옆으로 밀어 선택하세요. 일차 관리에서 날짜·이름·순서를 바꿀 수 있습니다.</div>
-  <div class="planner-tools"><button class="btn" id="manageDaysBtn">일차 관리</button></div>
   <div id="updateNotice" class="footerhint" hidden>새 버전이 준비되었습니다. 수정 내용을 저장한 뒤 새로고침해 주세요.</div>
-  <div class="tabs" id="tabs"></div>
+  <div class="tabs" id="tabs"><button class="tab manage-tab" id="manageDaysBtn"><span aria-hidden="true">⚙</span> 일차 관리</button></div>
   <main id="content"></main>
   <details class="footerhint"><summary>추천 일정 참고 안내</summary><p>이동·관람 시간은 여유를 둔 계획값입니다. 운영 공지와 교통 상황에 따라 조정하세요.</p><a href="https://www.hallimpark.com/" target="_blank" rel="noopener">한림공원 공식 안내</a> · <a href="https://visitjeju.net/kr/detail/view?contentsid=CONT_000000000500697" target="_blank" rel="noopener">협재해수욕장 안내</a> · <a href="https://nexonmuseum.org" target="_blank" rel="noopener">넥슨뮤지엄 공식 안내</a></details>
   <div class="footerhint">Safari에서 홈 화면에 추가하면 앱처럼 사용할 수 있습니다. 가족용 링크로 연결하면 일정과 체크 상태가 함께 저장됩니다.</div>
@@ -207,8 +206,8 @@ button:disabled{opacity:.5;cursor:default}
   <p class="smallnote">일차를 삭제하면 안에 있는 일정도 삭제됩니다. 다른 일차와 준비물은 유지됩니다.</p>
   <div class="actions"><button class="btn danger" id="deleteDayBtn" type="button">일차 삭제</button><button class="btn" id="dayCancel" type="button">취소</button><button class="btn primary" type="submit">저장</button></div>
 </form></dialog>
-<script src="./defaults.js?v=9"></script>
-<script src="./sync.js?v=9"></script>
-<script src="./app.js?v=9"></script>
+<script src="./defaults.js?v=10"></script>
+<script src="./sync.js?v=10"></script>
+<script src="./app.js?v=10"></script>
 </body>
 </html>
