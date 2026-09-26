@@ -18,4 +18,12 @@ test('backend validates and persists packing, preserves it for old clients, and 
  bad.packing={groups:[]};bad.shopping.groups[0].items[0].done="yes";assert.equal((await handler(req("PUT",{version:3,document:bad}))).status,400);bad.shopping.groups[0].items[0].done=true;response=await handler(req('PUT',{version:3,document:bad}));assert.equal(response.status,200);assert.equal(row.document.packing.groups.length,0);
  const invalid=JSON.parse(JSON.stringify(row.document));invalid.note='a'.repeat(301);assert.equal((await handler(req('PUT',{version:4,document:invalid}))).status,400);
  invalid.note='';assert.equal((await handler(req('PUT',{version:4,document:invalid}))).status,200);assert.equal(row.document.note,'');
+ const metadata=JSON.parse(JSON.stringify(row.document));metadata.title='가족여행';metadata.description='첫 줄\n둘째 줄';
+ assert.equal((await handler(req('PUT',{version:5,document:metadata}))).status,200);assert.equal(row.document.title,'가족여행');assert.equal(row.document.description,'첫 줄\n둘째 줄');
+ assert.equal((await handler(req('PUT',{version:6,document:{days:row.document.days}}))).status,200);assert.equal(row.document.title,'가족여행');assert.equal(row.document.description,'첫 줄\n둘째 줄');
+ const before=JSON.parse(JSON.stringify(row.document));
+ assert.equal((await handler(req('PUT',{version:7,document:{...before,days:[]}}))).status,200);assert.deepEqual(row.document,{...before,days:[]});
+ assert.equal((await handler(req('PUT',{version:8,document:{...before,description:''}}))).status,200);assert.equal(row.document.description,'');
+ for(const patch of [{title:' '},{title:'a'.repeat(121)},{title:'a\nb'},{description:'a'.repeat(2001)},{description:5},{days:[{id:'blank',label:' ',subtitle:'',items:[]}]},{days:Array.from({length:61},(_,i)=>({id:'day-'+i,label:'day',subtitle:'',items:[]}))}])assert.equal((await handler(req('PUT',{version:9,document:{...before,...patch}}))).status,400);
+ const days=Array.from({length:60},(_,i)=>({id:'day-'+i,label:'day',subtitle:'',items:[]}));assert.equal((await handler(req('PUT',{version:9,document:{...before,days}}))).status,200);
 });

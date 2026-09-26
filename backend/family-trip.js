@@ -4,12 +4,14 @@ const ORIGIN="https://jhj-developer.github.io";
 const headers={"Access-Control-Allow-Origin":ORIGIN,"Access-Control-Allow-Headers":"content-type,x-family-key","Access-Control-Allow-Methods":"GET,PUT,OPTIONS","Content-Type":"application/json","Cache-Control":"no-store","Vary":"Origin"};
 const reply=(status,body)=>new Response(JSON.stringify(body),{status,headers});
 function valid(doc){
- if(!doc||!Array.isArray(doc.days)||doc.days.length<1||doc.days.length>10)return false;
+ if(!doc||!Array.isArray(doc.days)||doc.days.length>60)return false;
+ if(doc.title!==undefined&&(typeof doc.title!=="string"||!doc.title.trim()||doc.title.length>120||/[\r\n]/.test(doc.title)))return false;
+ if(doc.description!==undefined&&(typeof doc.description!=="string"||doc.description.length>2000))return false;
  const ids=new Set();
  for(const d of doc.days){
   if(!d||typeof d.id!=="string"||!/^[a-zA-Z0-9-]{1,64}$/.test(d.id)||ids.has(d.id))return false;
   ids.add(d.id);
-  if(typeof d.label!=="string"||d.label.length>100||typeof d.subtitle!=="string"||d.subtitle.length>1000||!Array.isArray(d.items)||d.items.length>200)return false;
+  if(typeof d.label!=="string"||!d.label.trim()||d.label.length>100||typeof d.subtitle!=="string"||d.subtitle.length>1000||!Array.isArray(d.items)||d.items.length>200)return false;
   for(const i of d.items){
    if(!i||typeof i.id!=="string"||!/^[a-zA-Z0-9-]{1,64}$/.test(i.id)||ids.has(i.id))return false;
    ids.add(i.id);
@@ -63,6 +65,11 @@ Deno.serve(async req=>{
   const shopping=input.document.shopping||row.document.shopping||DEFAULT_SHOPPING;
   doc.shopping={groups:shopping.groups.map(g=>({id:g.id,name:g.name,items:g.items.map(i=>({id:i.id,title:i.title,done:i.done}))}))};
   doc.note=input.document.note!==undefined?input.document.note:(row.document.note||"");
+  // Older open tabs may omit new metadata; never erase it on their behalf.
+  for(const field of ["title","description"]){
+   const value=input.document[field]!==undefined?input.document[field]:row.document[field];
+   if(value!==undefined)doc[field]=value;
+  }
   const updated=await fetch(dburl+"&version=eq."+input.version+"&select=document,version,updated_at",{method:"PATCH",headers:{...dbheaders,Prefer:"return=representation"},body:JSON.stringify({document:doc,version:input.version+1,updated_at:new Date().toISOString()})});
   if(!updated.ok)return reply(503,{error:"storage_unavailable"});
   const result=await updated.json();if(result.length!==1)return reply(409,{error:"conflict"});

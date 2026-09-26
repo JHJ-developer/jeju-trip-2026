@@ -63,6 +63,9 @@ dialog::backdrop{background:rgba(0,0,0,.38)}
 .appheader{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px 10px;align-items:center}
 .appheader h1{font-size:clamp(22px,6vw,27px)}
 .appheader .sub{grid-column:1/-1;margin-top:0}
+.header-title{display:flex;gap:5px;align-items:center;min-width:0}.header-title h1{min-width:0;overflow-wrap:anywhere}.header-edit{flex-shrink:0;border:0;background:transparent;color:var(--muted);padding:4px;font-size:18px;min-width:32px}
+.editable-sub{display:block;width:100%;padding:4px 0;border:0;background:transparent;text-align:left;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--muted);font-size:14px;line-height:1.6}
+.planner-tools{display:flex;justify-content:flex-end;margin:8px 0}.manage-row{border-top:1px solid var(--line);padding:12px 0;display:flex;gap:10px;align-items:center}.manage-copy{min-width:0;flex:1;overflow-wrap:anywhere}.manage-copy strong{display:block}.manage-buttons{display:flex;gap:5px}.manage-buttons button{min-width:42px}.daymeta{white-space:pre-wrap}.day-tools{display:flex;gap:8px;align-items:center}.manage-empty{padding:20px 0;color:var(--muted)}
 .header-sync{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:62px;min-height:58px;padding:5px!important;color:var(--text);font-size:12px;white-space:nowrap}
 .header-sync .sync-symbol{font-size:24px;line-height:1}
 .trip-note{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;margin:12px 0 0;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;text-align:left;color:var(--text);font-size:14px}.note-label{color:var(--muted);flex-shrink:0}#noteText{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.trip-note:focus-visible{outline:3px solid #3b82f6}
@@ -102,9 +105,9 @@ button:disabled{opacity:.5;cursor:default}
 <body>
 <div class="app">
   <header class="appheader">
-    <h1>제주 가족여행 플래너</h1>
+    <div class="header-title"><h1 id="tripTitle">제주 가족여행 플래너</h1><button class="header-edit" id="editTripBtn" aria-label="여행 제목과 부가내용 수정">✎</button></div>
     <button class="btn header-sync" id="refreshBtn" aria-label="지금 동기화" hidden><span class="sync-symbol" aria-hidden="true">⟳</span><span>동기화</span></button>
-    <div class="sub">2026.10.26 ~ 10.30 · 그랜드 하얏트 제주<br>렌터카 10/26 12:30 대여 · 10/30 11:30 반납</div>
+    <button class="sub editable-sub" id="tripDescription" aria-label="여행 부가내용 수정">2026.10.26 ~ 10.30 · 그랜드 하얏트 제주<br>렌터카 10/26 12:30 대여 · 10/30 11:30 반납</button>
   </header>
 
   <button class="trip-note" id="noteButton" aria-label="한 줄 메모 수정"><span class="note-label">메모</span><span id="noteText">가족과 공유할 한 줄 메모를 남겨보세요.</span><span aria-hidden="true">✎</span></button>
@@ -114,7 +117,8 @@ button:disabled{opacity:.5;cursor:default}
     <div class="progress"><div id="overallBar"></div></div>
   </div>
 
-  <div class="footerhint">사야할 것 · 준비물 · 1~5일차 — 탭을 옆으로 밀어 선택하세요. 3~5일차는 추천 일정이며, 마지막 날 항공편 시간은 확인 후 입력해 주세요.</div>
+  <div class="footerhint">탭을 옆으로 밀어 선택하세요. 일차 관리에서 날짜·이름·순서를 바꿀 수 있습니다.</div>
+  <div class="planner-tools"><button class="btn" id="manageDaysBtn">일차 관리</button></div>
   <div id="updateNotice" class="footerhint" hidden>새 버전이 준비되었습니다. 수정 내용을 저장한 뒤 새로고침해 주세요.</div>
   <div class="tabs" id="tabs"></div>
   <main id="content"></main>
@@ -182,8 +186,29 @@ button:disabled{opacity:.5;cursor:default}
   <p class="smallnote">빈칸으로 저장하면 메모가 지워집니다.</p>
   <div class="actions"><button class="btn" id="noteCancel" type="button">취소</button><button class="btn primary" type="submit">저장</button></div>
 </form></dialog>
-<script src="./defaults.js?v=8"></script>
-<script src="./sync.js?v=8"></script>
-<script src="./app.js?v=8"></script>
+<dialog id="tripDialog" aria-labelledby="tripDialogTitle"><form class="modal" id="tripForm">
+  <h3 id="tripDialogTitle">여행 정보 수정</h3>
+  <div class="field"><label for="tripTitleInput">상단 제목</label><input id="tripTitleInput" type="text" required maxlength="120" autocomplete="off"></div>
+  <div class="field"><label for="tripDescriptionInput">부가내용</label><textarea id="tripDescriptionInput" maxlength="2000" placeholder="여행 기간, 숙소, 교통편 등을 자유롭게 적어 주세요."></textarea></div>
+  <p class="smallnote">줄바꿈을 사용할 수 있습니다. 저장하면 가족에게도 반영됩니다.</p>
+  <div class="actions"><button class="btn" id="tripCancel" type="button">취소</button><button class="btn primary" type="submit">저장</button></div>
+</form></dialog>
+<dialog id="daysDialog" aria-labelledby="daysTitle"><div class="modal">
+  <h3 id="daysTitle">일차 관리</h3>
+  <p class="smallnote">탭 이름에 날짜를 자유롭게 적어 주세요. 화살표로 순서를 바꾸면 해당 일차의 일정도 함께 이동합니다.</p>
+  <div id="daysList"></div>
+  <button class="addbtn" id="addDayBtn">＋ 일차 추가</button>
+  <div class="actions"><button class="btn primary" id="daysClose">닫기</button></div>
+</div></dialog>
+<dialog id="dayDialog" aria-labelledby="dayDialogTitle"><form class="modal" id="dayForm">
+  <h3 id="dayDialogTitle">일차 수정</h3>
+  <div class="field"><label for="dayLabelInput">탭 이름 · 날짜</label><input id="dayLabelInput" type="text" required maxlength="100" placeholder="예: 1일차 · 10/26 또는 도쿄 도착" autocomplete="off"></div>
+  <div class="field"><label for="daySubtitleInput">부가 설명</label><textarea id="daySubtitleInput" maxlength="1000" placeholder="이날의 주요 일정이나 메모"></textarea></div>
+  <p class="smallnote">일차를 삭제하면 안에 있는 일정도 삭제됩니다. 다른 일차와 준비물은 유지됩니다.</p>
+  <div class="actions"><button class="btn danger" id="deleteDayBtn" type="button">일차 삭제</button><button class="btn" id="dayCancel" type="button">취소</button><button class="btn primary" type="submit">저장</button></div>
+</form></dialog>
+<script src="./defaults.js?v=9"></script>
+<script src="./sync.js?v=9"></script>
+<script src="./app.js?v=9"></script>
 </body>
 </html>

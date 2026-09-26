@@ -2,13 +2,12 @@
 const API='https://pvfvbosolqpqbmocwyrw.supabase.co/functions/v1/family-trip';
 const KEY='jejuTripPWA_v1', INVITE_KEY='jejuFamilyInvite_v1';
 const $=id=>document.getElementById(id);
-const {copy,equal,merge,SyncEngine,packingOf,shoppingOf}=FamilySync;
+const {copy,equal,merge,SyncEngine,packingOf,shoppingOf,infoOf,MAX_DAYS}=FamilySync;
 const read=key=>{try{return JSON.parse(localStorage.getItem(key));}catch{return null;}};
 function write(key,value){try{localStorage.setItem(key,JSON.stringify(value));return true;}catch{$('storageWarning').hidden=false;return false;}}
-function validDocument(d){return d&&Array.isArray(d.days)&&d.days.length&&d.days.every(x=>typeof x.id==='string'&&Array.isArray(x.items));}
+function validDocument(d){return d&&Array.isArray(d.days)&&d.days.every(x=>typeof x.id==='string'&&Array.isArray(x.items));}
 function loadLocal(){
   const saved=read(KEY);if(!validDocument(saved))return copy(DEFAULT_DATA);
-  for(const day of DEFAULT_DATA.days)if(!saved.days.some(d=>d.id===day.id))saved.days.push(copy(day));
   return saved;
 }
 const legacy=loadLocal();
@@ -23,6 +22,10 @@ if(!cached||!validDocument(cached.base)||!validDocument(cached.document)||!Numbe
 let data=familyKey?(cached?copy(cached.document):{days:[]}):legacy;
 let active='shopping', editing=null, engine=null, deferredImport=false;
 const dlg=$('editDialog'), conflictDialog=$('conflictDialog'), packDlg=$('packDialog'), noteDlg=$('noteDialog');
+const tripDlg=$('tripDialog'),daysDlg=$('daysDialog'),dayDlg=$('dayDialog');
+let tripBase=null,dayEditing=null;
+const editorOpen=()=>[dlg,packDlg,noteDlg,tripDlg,daysDlg,dayDlg].some(d=>d.open);
+const editsDisabled=()=>!!(familyKey&&(!engine?.ready||engine?.errorStatus===401||engine?.pending));
 let noteBase=null;
 let packEditing=null;
 const VIEW_KEY='jejuPackingView:'+ (familyKey||'local');
@@ -33,6 +36,11 @@ const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;
 const uid=()=>crypto.randomUUID();
 const pct=items=>items.length?Math.round(items.filter(i=>i.done).length/items.length*100):0;
 function render(){
+  const info=infoOf(data);
+  $('tripTitle').textContent=info.title;document.title=info.title;
+  $('tripDescription').textContent=info.description||'여행 기간·숙소 등 부가내용을 입력하세요.';
+  for(const id of ['editTripBtn','tripDescription','manageDaysBtn'])$(id).disabled=editsDisabled();
+  if(daysDlg.open)renderDays();
   $('noteText').textContent=data.note||'가족과 공유할 한 줄 메모를 남겨보세요.';
   $('noteButton').disabled=!!(familyKey&&(!engine?.ready||engine?.errorStatus===401||engine?.pending));
   if(!['packing','shopping'].includes(active)&&!data.days.some(d=>d.id===active))active='shopping';
@@ -40,13 +48,13 @@ function render(){
   $('tabs').innerHTML=`<button class="tab ${active==='shopping'?'active':''}" aria-pressed="${active==='shopping'}" data-id="shopping">사야할 것</button><button class="tab ${active==='packing'?'active':''}" aria-pressed="${active==='packing'}" data-id="packing">준비물</button>`+data.days.map(d=>`<button class="tab ${active===d.id?'active':''}" aria-pressed="${active===d.id}" data-id="${esc(d.id)}">${esc(d.label)}</button>`).join('');
   $('tabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{active=b.dataset.id;render();});
   $('tabs').scrollLeft=tabScroll;
-  if(['packing','shopping'].includes(active)&&data.days.length){renderPacking(active);return;}
+  if(['packing','shopping'].includes(active)&&(!familyKey||engine?.ready)){renderPacking(active);return;}
   $('overallLabel').textContent='여행 일정 진척도';
   const day=data.days.find(d=>d.id===active);
   if(!day){$('content').innerHTML='<p class="smallnote">가족 일정을 불러오는 중입니다. 연결 상태를 확인해 주세요.</p>';return;}
   const items=[...day.items].sort((a,b)=>(a.start||'99:99').localeCompare(b.start||'99:99')||(a.end||'').localeCompare(b.end||''));
   const disabled=familyKey&&(!engine?.ready||engine?.errorStatus===401||!!engine?.pending);
-  $('content').innerHTML=`<section class="daycard"><div class="dayhead"><div><h2>${esc(day.label)}</h2><div class="daymeta">${esc(day.subtitle||'')}</div></div><span class="dayprogress">${pct(items)}%</span></div>
+  $('content').innerHTML=`<section class="daycard"><div class="dayhead"><div><h2>${esc(day.label)}</h2><div class="daymeta">${esc(day.subtitle||'')}</div></div><div class="day-tools"><span class="dayprogress">${pct(items)}%</span><button class="iconbtn" id="editDayBtn" aria-label="이 일차의 이름과 설명 수정" ${disabled?'disabled':''}>✎</button></div></div>
     ${items.map(i=>`<div class="item ${i.done?'done':''}"><input type="checkbox" data-check="${esc(i.id)}" aria-label="${esc(i.title)} 완료" ${i.done?'checked':''} ${disabled?'disabled':''}><div class="time">${i.start?esc(i.start)+'<br>~ '+esc(i.end):'시간 미정'}</div><div><div class="title">${esc(i.title)}</div>${i.detail?`<div class="detail">${esc(i.detail)}</div>`:''}</div><button class="iconbtn" data-edit="${esc(i.id)}" aria-label="${esc(i.title)} 수정" ${disabled?'disabled':''}>✎</button></div>`).join('')}
     <button class="addbtn" id="addBtn" ${disabled?'disabled':''}>＋ 일정 추가</button></section>`;
   $('content').querySelectorAll('[data-check]').forEach(cb=>cb.onchange=()=>{
@@ -54,6 +62,7 @@ function render(){
   });
   $('content').querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openEditor(day.id,b.dataset.edit));
   $('addBtn').onclick=()=>openEditor(day.id);
+  $('editDayBtn').onclick=()=>openDay(day.id);
   const progress=pct(data.days.flatMap(d=>d.items));$('overallText').textContent=progress+'%';$('overallBar').style.width=progress+'%';
 }
 function renderPacking(scope='packing'){
@@ -140,9 +149,9 @@ function updateStatus(){
   $('shareBtn').textContent=engine.errorStatus===401?'가족 링크 다시 연결':'가족에게 공유';
   $('importBtn').hidden=!engine.ready||!!engine.pending||engine.errorStatus===401||equal(legacy,DEFAULT_DATA)||!!read('jejuFamilyImported:'+familyKey);
 }
-function conflictValue(value){if(value===null)return '삭제';if(typeof value==='object'){if(value.name)return value.name+' ('+value.items.length+'개 항목)';if(value.start===undefined)return value.title+' · '+(value.done?'완료':'미완료');return value.title+' / '+value.start+'~'+value.end+' / '+value.detail;}if(typeof value==='boolean')return value?'완료':'미완료';return value||'(비어 있음)';}
+function conflictValue(value){if(value===null)return '삭제';if(typeof value==='object'){if(value.label)return value.label+' ('+value.items.length+'개 일정)';if(value.name)return value.name+' ('+value.items.length+'개 항목)';if(value.start===undefined)return value.title+' · '+(value.done?'완료':'미완료');return value.title+' / '+value.start+'~'+value.end+' / '+value.detail;}if(typeof value==='boolean')return value?'완료':'미완료';return value||'(비어 있음)';}
 function showConflicts(conflicts){
-  const names={name:'그룹명',start:'시작시각',end:'종료시각',title:'일정명',detail:'메모',done:'완료 체크'};
+  const names={name:'그룹명',start:'시작시각',end:'종료시각',title:'일정명',detail:'메모',done:'완료 체크',label:'탭 이름 · 날짜',subtitle:'일차 설명'};
   $('conflictList').innerHTML=conflicts.map(c=>`<div class="conflictitem"><strong>${esc(c.title)} · ${esc(names[c.field]||c.field)}</strong><p>내 수정: ${esc(conflictValue(c.mine))}</p><p>가족 수정: ${esc(conflictValue(c.theirs))}</p></div>`).join('');
   if(!conflictDialog.open)conflictDialog.showModal();updateStatus();
 }
@@ -150,6 +159,57 @@ function applyChange(base,next){
   if(engine){if(engine.edit(base,next))void engine.run();}
   else{data=next;write(KEY,data);render();}
 }
+function openTrip(){if(editsDisabled())return;tripBase=copy(data);const info=infoOf(data);$('tripTitleInput').value=info.title;$('tripTitleInput').setCustomValidity('');$('tripDescriptionInput').value=info.description;tripDlg.showModal();}
+$('editTripBtn').onclick=openTrip;$('tripDescription').onclick=openTrip;
+$('tripCancel').onclick=()=>tripDlg.close();
+$('tripTitleInput').oninput=()=>$('tripTitleInput').setCustomValidity('');
+$('tripForm').addEventListener('submit',event=>{
+  event.preventDefault();if(!tripBase)return;
+  const title=$('tripTitleInput').value.trim();if(!title){$('tripTitleInput').setCustomValidity('제목을 입력해 주세요.');$('tripTitleInput').reportValidity();return;}
+  const next=copy(tripBase);next.title=title;next.description=$('tripDescriptionInput').value.trim();
+  tripDlg.close();applyChange(tripBase,next);tripBase=null;
+});
+function renderDays(){
+  const disabled=editsDisabled();
+  $('daysList').innerHTML=data.days.map((day,index)=>`<div class="manage-row"><div class="manage-copy"><strong>${esc(day.label)}</strong><span class="smallnote">${day.items.length}개 일정</span></div><div class="manage-buttons"><button class="btn" data-day-move="${esc(day.id)}" data-step="-1" aria-label="${esc(day.label)} 앞으로 이동" ${disabled||index===0?'disabled':''}>↑</button><button class="btn" data-day-move="${esc(day.id)}" data-step="1" aria-label="${esc(day.label)} 뒤로 이동" ${disabled||index===data.days.length-1?'disabled':''}>↓</button><button class="btn" data-day-edit="${esc(day.id)}" aria-label="${esc(day.label)} 일차 수정" ${disabled?'disabled':''}>수정</button></div></div>`).join('')||'<p class="manage-empty">아직 여행 일차가 없습니다. 첫 일차를 추가해 보세요.</p>';
+  $('addDayBtn').disabled=disabled||data.days.length>=MAX_DAYS;
+  $('daysList').querySelectorAll('[data-day-edit]').forEach(b=>b.onclick=()=>openDay(b.dataset.dayEdit));
+  $('daysList').querySelectorAll('[data-day-move]').forEach(b=>b.onclick=()=>{
+    const base=copy(data),next=copy(data),index=next.days.findIndex(d=>d.id===b.dataset.dayMove),target=index+Number(b.dataset.step);
+    if(index<0||target<0||target>=next.days.length)return;
+    [next.days[index],next.days[target]]=[next.days[target],next.days[index]];applyChange(base,next);
+  });
+}
+$('manageDaysBtn').onclick=()=>{renderDays();daysDlg.showModal();};
+$('daysClose').onclick=()=>daysDlg.close();
+$('addDayBtn').onclick=()=>openDay();
+function openDay(dayId){
+  if(editsDisabled())return;
+  if(!dayId&&data.days.length>=MAX_DAYS){alert('일차는 '+MAX_DAYS+'개까지 추가할 수 있습니다.');return;}
+  const day=data.days.find(d=>d.id===dayId);if(dayId&&!day)return;
+  dayEditing={dayId,base:copy(data)};
+  $('dayDialogTitle').textContent=day?'일차 수정':'일차 추가';
+  let number=data.days.length+1;while(data.days.some(d=>d.label===number+'일차'))number++;
+  $('dayLabelInput').value=day?.label||number+'일차';$('dayLabelInput').setCustomValidity('');
+  $('daySubtitleInput').value=day?.subtitle||'';$('deleteDayBtn').hidden=!day;dayDlg.showModal();
+}
+$('dayCancel').onclick=()=>dayDlg.close();
+$('dayLabelInput').oninput=()=>$('dayLabelInput').setCustomValidity('');
+$('dayForm').addEventListener('submit',event=>{
+  event.preventDefault();if(!dayEditing)return;
+  const label=$('dayLabelInput').value.trim();if(!label){$('dayLabelInput').setCustomValidity('탭 이름을 입력해 주세요.');$('dayLabelInput').reportValidity();return;}
+  const {base,dayId}=dayEditing,next=copy(base),values={label,subtitle:$('daySubtitleInput').value.trim()};
+  if(dayId)Object.assign(next.days.find(d=>d.id===dayId),values);
+  else{const id=uid();next.days.push({id,...values,items:[]});active=id;}
+  dayDlg.close();applyChange(base,next);dayEditing=null;
+});
+$('deleteDayBtn').onclick=()=>{
+  if(!dayEditing?.dayId)return;
+  const {base,dayId}=dayEditing,day=base.days.find(d=>d.id===dayId);
+  if(!confirm('“'+day.label+'”와 안에 있는 일정 '+day.items.length+'개를 삭제할까요? 가족에게도 반영됩니다.'))return;
+  const next=copy(base);next.days=next.days.filter(d=>d.id!==dayId);
+  dayDlg.close();applyChange(base,next);dayEditing=null;
+};
 function openEditor(dayId,itemId){
   const day=data.days.find(d=>d.id===dayId),item=day.items.find(i=>i.id===itemId);
   if(!item&&day.items.length>=200){alert('하루 일정은 200개까지 저장할 수 있습니다.');return;}
@@ -195,7 +255,7 @@ $('copyLink').onclick=async()=>{
   try{await navigator.clipboard.writeText(familyURL());$('shareFeedback').textContent='링크를 복사했습니다. 가족에게 붙여 넣어 보내 주세요.';}
   catch{$('shareLink').focus();$('shareLink').select();$('shareFeedback').textContent='링크를 길게 눌러 복사해 주세요.';}
 };
-$('sendLink').onclick=async()=>{try{await navigator.share({title:'제주 가족여행 플래너',text:'우리 가족의 제주 여행 일정입니다. 함께 수정할 수 있어요.',url:familyURL()});}catch(error){if(error.name!=='AbortError')$('shareFeedback').textContent='공유 창을 열지 못했습니다. 링크 복사를 이용해 주세요.';}};
+$('sendLink').onclick=async()=>{try{await navigator.share({title:infoOf(data).title,text:'우리 가족의 여행 일정입니다. 함께 수정할 수 있어요.',url:familyURL()});}catch(error){if(error.name!=='AbortError')$('shareFeedback').textContent='공유 창을 열지 못했습니다. 링크 복사를 이용해 주세요.';}};
 $('joinClose').onclick=()=>$('joinDialog').close();
 $('joinForm').addEventListener('submit',event=>{
   event.preventDefault();
@@ -217,17 +277,17 @@ async function request(method,body){
 if(familyKey){
   engine=new SyncEngine({request,cached,onChange:()=>{data=engine.document;persistEngine();render();updateStatus();},onConflict:showConflicts});
   $('refreshBtn').hidden=false;$('refreshBtn').onclick=()=>void engine.run();
-  $('modeNote').textContent='가족이 바꾼 내용을 약 8초마다 확인합니다. 연결이 끊기면 수정사항을 이 기기에 보관합니다.';
+  $('modeNote').textContent='가족이 바꾼 내용을 약 30초마다 확인합니다. 내 수정은 바로 저장하며, 연결이 끊기면 이 기기에 보관합니다.';
   void engine.run();
-  setInterval(()=>{if(!document.hidden&&!dlg.open&&!packDlg.open&&!noteDlg.open)void engine.run();},8000);
+  setInterval(()=>{if(!document.hidden&&!editorOpen())void engine.run();},30000);
   window.addEventListener('online',()=>void engine.run());
-  window.addEventListener('focus',()=>{if(!dlg.open&&!packDlg.open&&!noteDlg.open)void engine.run();});
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!dlg.open&&!packDlg.open&&!noteDlg.open)void engine.run();});
+  window.addEventListener('focus',()=>{if(!editorOpen())void engine.run();});
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!editorOpen())void engine.run();});
 }else{$('shareBtn').textContent='가족 링크 연결';$('modeNote').textContent='가족용 링크로 한 번 연결하면 같은 일정을 함께 수정할 수 있습니다.';}
-window.addEventListener('beforeunload',event=>{if(engine?.dirty||dlg.open||packDlg.open||noteDlg.open){event.preventDefault();event.returnValue='';}});
+window.addEventListener('beforeunload',event=>{if(engine?.dirty||editorOpen()){event.preventDefault();event.returnValue='';}});
 if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',()=>{
-    if(!dlg.open&&!packDlg.open&&!noteDlg.open&&!conflictDialog.open&&!engine?.dirty)location.reload();else $('updateNotice').hidden=false;
+    if(!editorOpen()&&!conflictDialog.open&&!engine?.dirty)location.reload();else $('updateNotice').hidden=false;
   });
   window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').then(r=>r.update()).catch(()=>{}));
 }

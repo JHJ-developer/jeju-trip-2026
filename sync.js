@@ -7,6 +7,9 @@
     const keys=Object.keys(a);return keys.length===Object.keys(b).length&&keys.every(k=>Object.prototype.hasOwnProperty.call(b,k)&&equal(a[k],b[k]));
   };
   const fields=['start','end','title','detail','done'];
+  const DEFAULT_INFO={title:'제주 가족여행 플래너',description:'2026.10.26 ~ 10.30 · 그랜드 하얏트 제주\n렌터카 10/26 12:30 대여 · 10/30 11:30 반납'};
+  const infoOf=doc=>({title:doc.title??DEFAULT_INFO.title,description:doc.description??DEFAULT_INFO.description});
+  const MAX_DAYS=60;
   const DEFAULT_PACKING={groups:[{id:'pack-ayoon',name:'아윤이짐',items:[{id:'pack-pajamas',title:'잠옷',done:false},{id:'pack-toys',title:'장난감',done:false}]},{id:'pack-common',name:'공통',items:[{id:'pack-toothbrushes',title:'칫솔 3개',done:false}]}]};
   const DEFAULT_SHOPPING={groups:[{id:'shopping-list',name:'구매 목록',items:[{id:'shop-suitcase',title:'여행캐리어',done:false},{id:'shop-kettle',title:'전기포트',done:false}]}]};
   const shoppingOf=doc=>doc.shopping||DEFAULT_SHOPPING;
@@ -33,10 +36,25 @@
   // Three-way merge: only locally changed fields are applied to the latest document.
   function merge(base,local,remote,choice){
     const document=copy(remote), conflicts=[];
-    for(const mineDay of local.days){
-      const beforeDay=base.days.find(d=>d.id===mineDay.id);
-      const targetDay=document.days.find(d=>d.id===mineDay.id);
-      if(!beforeDay||!targetDay)continue;
+    for(const dayId of new Set([...base.days,...local.days].map(d=>d.id))){
+      const beforeDay=base.days.find(d=>d.id===dayId);
+      const mineDay=local.days.find(d=>d.id===dayId);
+      const targetDay=document.days.find(d=>d.id===dayId);
+      if(equal(beforeDay,mineDay))continue;
+      const dayConflict=(field,mine=mineDay||null,theirs=targetDay||null)=>{conflicts.push({title:(mineDay||targetDay||beforeDay).label,field,mine,theirs});return choice==='mine';};
+      if(!beforeDay){
+        if(!targetDay)document.days.push(copy(mineDay));
+        else if(!equal(mineDay,targetDay)&&dayConflict('일차 추가'))Object.assign(targetDay,copy(mineDay));
+        continue;
+      }
+      if(!mineDay){
+        if(targetDay&&(equal(beforeDay,targetDay)||dayConflict('일차 삭제')))document.days=document.days.filter(d=>d.id!==dayId);
+        continue;
+      }
+      if(!targetDay){if(dayConflict('삭제된 일차'))document.days.push(copy(mineDay));continue;}
+      for(const field of ['label','subtitle'])if(mineDay[field]!==beforeDay[field]){
+        if(targetDay[field]===beforeDay[field]||targetDay[field]===mineDay[field]||dayConflict(field,mineDay[field],targetDay[field]))targetDay[field]=mineDay[field];
+      }
       const ids=new Set([...beforeDay.items,...mineDay.items].map(i=>i.id));
       for(const id of ids){
         const before=beforeDay.items.find(i=>i.id===id);
@@ -63,6 +81,34 @@
             Object.assign(theirs,useMine?{start:mine.start,end:mine.end}:remoteTime);
           }
         }
+      }
+    }
+    // Compare order only for surviving shared days; additions/deletions are not reorders.
+    const common=base.days.map(d=>d.id).filter(id=>local.days.some(d=>d.id===id)&&remote.days.some(d=>d.id===id)&&document.days.some(d=>d.id===id));
+    const localOrder=local.days.map(d=>d.id).filter(id=>common.includes(id));
+    const remoteOrder=remote.days.map(d=>d.id).filter(id=>common.includes(id));
+    let preferred=remote.days,secondary=local.days;
+    if(!equal(common,localOrder)){
+      let useMine=true;
+      if(!equal(common,remoteOrder)&&!equal(localOrder,remoteOrder)){
+        conflicts.push({title:'여행 일차',field:'일차 순서',mine:local.days.map(d=>d.label).join(' → '),theirs:remote.days.map(d=>d.label).join(' → ')});
+        useMine=choice==='mine';
+      }
+      if(useMine){preferred=local.days;secondary=remote.days;}
+    }
+    const ordered=preferred.map(d=>d.id).filter(id=>document.days.some(d=>d.id===id));
+    for(let i=0;i<secondary.length;i++){
+      const id=secondary[i].id;if(ordered.includes(id)||!document.days.some(d=>d.id===id))continue;
+      const previous=secondary.slice(0,i).reverse().find(d=>ordered.includes(d.id));
+      const next=secondary.slice(i+1).find(d=>ordered.includes(d.id));
+      ordered.splice(previous?ordered.indexOf(previous.id)+1:next?ordered.indexOf(next.id):ordered.length,0,id);
+    }
+    document.days=ordered.map(id=>document.days.find(d=>d.id===id));
+    for(const field of ['title','description']){
+      const before=infoOf(base)[field],mine=infoOf(local)[field],theirs=infoOf(remote)[field];
+      if(mine!==before){
+        if(theirs===before||theirs===mine||choice==='mine')document[field]=mine;
+        else conflicts.push({title:'여행 정보',field:field==='title'?'여행 제목':'부가내용',mine,theirs});
       }
     }
     if(base.packing||local.packing||remote.packing){
@@ -132,7 +178,7 @@
       finally{this.busy=false;this.emit();}
     }
   }
-  const api={merge,SyncEngine,copy,equal,DEFAULT_PACKING,packingOf,DEFAULT_SHOPPING,shoppingOf};
+  const api={merge,SyncEngine,copy,equal,DEFAULT_PACKING,packingOf,DEFAULT_SHOPPING,shoppingOf,DEFAULT_INFO,infoOf,MAX_DAYS};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   else root.FamilySync=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

@@ -75,3 +75,46 @@ test('shared note merges independently, detects conflicts, and permits clearing'
  mine.note='';assert.equal(merge(base,mine,base).document.note,'');
  const old=copy(doc);assert.equal(merge(old,old,remote).document.note,'가족 메모');
 });
+
+test('trip metadata merges with old documents and concurrent checks without injecting defaults',()=>{
+ const {infoOf}=require('../sync.js');const mine=copy(doc),remote=copy(doc);
+ assert.deepEqual(merge(doc,doc,doc).document,doc);
+ mine.title='가족의 다음 여행';mine.description='11/1 ~ 11/7\n부산';remote.days[0].items[0].done=true;
+ const result=merge(doc,mine,remote);assert.equal(result.conflicts.length,0);assert.equal(result.document.title,mine.title);assert.equal(result.document.description,mine.description);assert.ok(result.document.days[0].items[0].done);
+ remote.title='가족 제목';assert.equal(merge(doc,mine,remote).conflicts.length,1);assert.equal(merge(doc,mine,remote,'family').document.title,'가족 제목');assert.equal(merge(doc,mine,remote,'mine').document.title,mine.title);
+ const base={...copy(doc),...infoOf(doc)},empty=copy(base);empty.description='';assert.equal(merge(base,empty,base).document.description,'');
+});
+const day=(id)=>({id,label:id,subtitle:'',items:[]});
+test('day addition, rename, subtitle, order, and item edits merge independently',()=>{
+ const base={days:[copy(doc.days[0]),day('day2'),day('day3')]},mine=copy(base),remote=copy(base);
+ mine.days[0].label='출발 · 11/1';mine.days.push(day('day4'));mine.days=[mine.days[2],mine.days[0],mine.days[1],mine.days[3]];
+ remote.days[0].subtitle='가족 설명';remote.days[0].items[0].done=true;
+ const result=merge(base,mine,remote);assert.equal(result.conflicts.length,0);assert.deepEqual(result.document.days.map(d=>d.id),['day3','day1','day2','day4']);assert.equal(result.document.days[1].label,'출발 · 11/1');assert.equal(result.document.days[1].subtitle,'가족 설명');assert.ok(result.document.days[1].items[0].done);
+ assert.deepEqual(merge(base,mine,mine).document,mine);
+});
+test('concurrent day additions keep both and day deletion keeps all non-day data',()=>{
+ const base={...copy(doc),note:'메모',shopping:{groups:[]},packing:{groups:[]}},mine=copy(base),remote=copy(base);
+ mine.days.push(day('new-a'));remote.days.push(day('new-b'));
+ const result=merge(base,mine,remote);assert.equal(result.conflicts.length,0);assert.equal(result.document.days.length,3);assert.deepEqual(new Set(result.document.days.map(d=>d.id)),new Set(['day1','new-a','new-b']));
+ mine.days=[];assert.deepEqual(merge(base,mine,base).document,{...base,days:[]});assert.deepEqual(merge(base,mine,mine).document,mine);
+});
+test('day deletion conflicts with a concurrent internal edit in either direction',()=>{
+ const deleted=copy(doc),edited=copy(doc);deleted.days=[];edited.days[0].items[0].done=true;
+ assert.equal(merge(doc,deleted,edited).conflicts[0].field,'일차 삭제');
+ assert.equal(merge(doc,deleted,edited,'mine').document.days.length,0);assert.ok(merge(doc,deleted,edited,'family').document.days[0].items[0].done);
+ assert.equal(merge(doc,edited,deleted).conflicts[0].field,'삭제된 일차');assert.ok(merge(doc,edited,deleted,'mine').document.days[0].items[0].done);assert.equal(merge(doc,edited,deleted,'family').document.days.length,0);
+});
+test('conflicting day reorders need a choice while concurrent additions stay in place',()=>{
+ const base={days:[day('a'),day('b'),day('c')]},mine=copy(base),remote=copy(base);
+ mine.days=[mine.days[1],mine.days[0],mine.days[2]];remote.days=[remote.days[0],day('new'),remote.days[2],remote.days[1]];
+ assert.equal(merge(base,mine,remote).conflicts[0].field,'일차 순서');
+ assert.deepEqual(merge(base,mine,remote,'mine').document.days.map(d=>d.id),['b','a','new','c']);
+ assert.deepEqual(merge(base,mine,remote,'family').document.days.map(d=>d.id),['a','new','c','b']);
+});
+test('two independent clients add days and edit metadata without losing existing content',async()=>{
+ const api=server(),a=new SyncEngine({request:api.request}),b=new SyncEngine({request:api.request});await Promise.all([a.run(),b.run()]);
+ const ab=copy(a.document),an=copy(ab);an.days.push(day('new'));an.title='새 여행';a.edit(ab,an);
+ const bb=copy(b.document),bn=copy(bb);bn.days[0].items[0].done=true;bn.description='숙소 변경';b.edit(bb,bn);
+ await Promise.all([a.run(),b.run()]);await Promise.all([a.run(),b.run()]);
+ assert.deepEqual(a.document,b.document);assert.equal(a.document.title,'새 여행');assert.equal(a.document.description,'숙소 변경');assert.equal(a.document.days.length,2);assert.ok(a.document.days[0].items[0].done);assert.ok(!a.dirty&&!b.dirty);
+});
