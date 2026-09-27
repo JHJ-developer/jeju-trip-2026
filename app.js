@@ -24,7 +24,7 @@ let active='shopping', editing=null, engine=null, deferredImport=false;
 const dlg=$('editDialog'), conflictDialog=$('conflictDialog'), packDlg=$('packDialog'), noteDlg=$('noteDialog');
 const tripDlg=$('tripDialog'),daysDlg=$('daysDialog'),dayDlg=$('dayDialog');
 let tripBase=null,dayEditing=null;
-const editorOpen=()=>[dlg,packDlg,noteDlg,tripDlg,daysDlg,dayDlg].some(d=>d.open);
+const editorOpen=()=>[dlg,packDlg,noteDlg,tripDlg,daysDlg,dayDlg,$("pushDialog")].some(d=>d.open);
 const editsDisabled=()=>!!(familyKey&&(!engine?.ready||engine?.errorStatus===401||engine?.pending));
 let noteBase=null;
 let packEditing=null;
@@ -36,6 +36,8 @@ const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;
 const uid=()=>crypto.randomUUID();
 const pct=items=>items.length?Math.round(items.filter(i=>i.done).length/items.length*100):0;
 function render(){
+  const target=new URLSearchParams(location.search).get('item');
+  if(target&&!window.tripNotificationOpened&&data.days.length){const day=data.days.find(d=>d.items.some(i=>i.id===target));if(day){active=day.id;window.tripNotificationOpened=true;setTimeout(()=>{const el=$('item-'+target);if(el){el.classList.add('highlight');el.scrollIntoView({block:'center',behavior:'smooth'});}},100);}}
   const info=infoOf(data);
   $('tripTitle').textContent=info.title;document.title=info.title;
   $('tripDescription').textContent=info.description||'여행 기간·숙소 등 부가내용을 입력하세요.';
@@ -56,8 +58,8 @@ function render(){
   if(!day){$('content').innerHTML='<p class="smallnote">가족 일정을 불러오는 중입니다. 연결 상태를 확인해 주세요.</p>';return;}
   const items=[...day.items].sort((a,b)=>(a.start||'99:99').localeCompare(b.start||'99:99')||(a.end||'').localeCompare(b.end||''));
   const disabled=familyKey&&(!engine?.ready||engine?.errorStatus===401||!!engine?.pending);
-  $('content').innerHTML=`<section class="daycard"><div class="dayhead"><div><h2>${esc(day.label)}</h2><div class="daymeta">${esc(day.subtitle||'')}</div></div><div class="day-tools"><span class="dayprogress">${pct(items)}%</span><button class="iconbtn" id="editDayBtn" aria-label="이 일차의 이름과 설명 수정" ${disabled?'disabled':''}>✎</button></div></div>
-    ${items.map(i=>`<div class="item ${i.done?'done':''}"><input type="checkbox" data-check="${esc(i.id)}" aria-label="${esc(i.title)} 완료" ${i.done?'checked':''} ${disabled?'disabled':''}><div class="time">${i.start?esc(i.start)+'<br>~ '+esc(i.end):'시간 미정'}</div><div><div class="title">${esc(i.title)}</div>${i.detail?`<div class="detail">${esc(i.detail)}</div>`:''}</div><button class="iconbtn" data-edit="${esc(i.id)}" aria-label="${esc(i.title)} 수정" ${disabled?'disabled':''}>✎</button></div>`).join('')}
+  $('content').innerHTML=`<section class="daycard"><div class="dayhead"><div><h2>${esc(day.label)}</h2><div class="daymeta">${esc(day.subtitle||'')}<br>${day.date?esc(day.date)+' · 한국 시간':'날짜 미지정 · 미리 알림 대기'}</div></div><div class="day-tools"><span class="dayprogress">${pct(items)}%</span><button class="iconbtn" id="editDayBtn" aria-label="이 일차의 이름과 설명 수정" ${disabled?'disabled':''}>✎</button></div></div>
+    ${items.map(i=>`<div id="item-${esc(i.id)}" class="item ${i.done?'done':''}"><input type="checkbox" data-check="${esc(i.id)}" aria-label="${esc(i.title)} 완료" ${i.done?'checked':''} ${disabled?'disabled':''}><div class="time">${i.start?esc(i.start)+'<br>~ '+esc(i.end):'시간 미정'}</div><div><div class="title">${esc(i.title)}</div>${i.start?`<div class="reminder-note">${i.reminder===false?'미리 알림 꺼짐':day.date?'10분 전 알림':'날짜 지정 필요'}</div>`:''}${i.detail?`<div class="detail">${esc(i.detail)}</div>`:''}</div><button class="iconbtn" data-edit="${esc(i.id)}" aria-label="${esc(i.title)} 수정" ${disabled?'disabled':''}>✎</button></div>`).join('')}
     <button class="addbtn" id="addBtn" ${disabled?'disabled':''}>＋ 일정 추가</button></section>`;
   $('content').querySelectorAll('[data-check]').forEach(cb=>cb.onchange=()=>{
     const base=copy(data),next=copy(data);next.days.find(d=>d.id===day.id).items.find(i=>i.id===cb.dataset.check).done=cb.checked;applyChange(base,next);
@@ -153,7 +155,7 @@ function updateStatus(){
 }
 function conflictValue(value){if(value===null)return '삭제';if(typeof value==='object'){if(value.label)return value.label+' ('+value.items.length+'개 일정)';if(value.name)return value.name+' ('+value.items.length+'개 항목)';if(value.start===undefined)return value.title+' · '+(value.done?'완료':'미완료');return value.title+' / '+value.start+'~'+value.end+' / '+value.detail;}if(typeof value==='boolean')return value?'완료':'미완료';return value||'(비어 있음)';}
 function showConflicts(conflicts){
-  const names={name:'그룹명',start:'시작시각',end:'종료시각',title:'일정명',detail:'메모',done:'완료 체크',label:'탭 이름 · 날짜',subtitle:'일차 설명'};
+  const names={name:'그룹명',start:'시작시각',end:'종료시각',title:'일정명',detail:'메모',done:'완료 체크',reminder:'미리 알림',date:'실제 날짜',label:'탭 이름 · 날짜',subtitle:'일차 설명'};
   $('conflictList').innerHTML=conflicts.map(c=>`<div class="conflictitem"><strong>${esc(c.title)} · ${esc(names[c.field]||c.field)}</strong><p>내 수정: ${esc(conflictValue(c.mine))}</p><p>가족 수정: ${esc(conflictValue(c.theirs))}</p></div>`).join('');
   if(!conflictDialog.open)conflictDialog.showModal();updateStatus();
 }
@@ -193,14 +195,14 @@ function openDay(dayId){
   $('dayDialogTitle').textContent=day?'일차 수정':'일차 추가';
   let number=data.days.length+1;while(data.days.some(d=>d.label===number+'일차'))number++;
   $('dayLabelInput').value=day?.label||number+'일차';$('dayLabelInput').setCustomValidity('');
-  $('daySubtitleInput').value=day?.subtitle||'';$('deleteDayBtn').hidden=!day;dayDlg.showModal();
+  $('dayDateInput').value=day?.date||'';$('daySubtitleInput').value=day?.subtitle||'';$('deleteDayBtn').hidden=!day;dayDlg.showModal();
 }
 $('dayCancel').onclick=()=>dayDlg.close();
 $('dayLabelInput').oninput=()=>$('dayLabelInput').setCustomValidity('');
 $('dayForm').addEventListener('submit',event=>{
   event.preventDefault();if(!dayEditing)return;
   const label=$('dayLabelInput').value.trim();if(!label){$('dayLabelInput').setCustomValidity('탭 이름을 입력해 주세요.');$('dayLabelInput').reportValidity();return;}
-  const {base,dayId}=dayEditing,next=copy(base),values={label,subtitle:$('daySubtitleInput').value.trim()};
+  const {base,dayId}=dayEditing,next=copy(base),values={label,date:$('dayDateInput').value,subtitle:$('daySubtitleInput').value.trim()};
   if(dayId)Object.assign(next.days.find(d=>d.id===dayId),values);
   else{const id=uid();next.days.push({id,...values,items:[]});active=id;}
   dayDlg.close();applyChange(base,next);dayEditing=null;
@@ -218,7 +220,7 @@ function openEditor(dayId,itemId){
   editing={dayId,itemId,base:copy(data)};
   $('modalTitle').textContent=item?'일정 수정':'새 일정 추가';
   s.value=item?.start||'';e.value=item?.end||'';t.value=item?.title||'';m.value=item?.detail||'';
-  $('deleteBtn').hidden=!item;dlg.showModal();
+  $('reminderInput').checked=item?.reminder!==false;$('reminderHint').textContent=day.date?'시작 10분 전, 가족에게 알려드립니다. 끄면 가족 모두에게 적용됩니다.':'일차 수정에서 실제 날짜를 지정해야 알림이 전송됩니다.';$('deleteBtn').hidden=!item;dlg.showModal();
 }
 $('cancelBtn').onclick=()=>dlg.close();
 $('editForm').addEventListener('submit',event=>{
@@ -227,7 +229,7 @@ $('editForm').addEventListener('submit',event=>{
   if(Boolean(s.value)!==Boolean(e.value)){alert('시작과 종료시각을 함께 입력하거나 둘 다 비워 주세요.');return;}
   if(e.value<s.value){alert('종료시각이 시작시각보다 빠릅니다.');return;}
   const next=copy(editing.base),day=next.days.find(d=>d.id===editing.dayId);
-  const values={start:s.value,end:e.value,title:t.value.trim(),detail:m.value.trim()};
+  const values={start:s.value,end:e.value,title:t.value.trim(),detail:m.value.trim(),reminder:$('reminderInput').checked};
   if(editing.itemId)Object.assign(day.items.find(i=>i.id===editing.itemId),values);
   else day.items.push({id:uid(),...values,done:false});
   const base=editing.base;dlg.close();applyChange(base,next);

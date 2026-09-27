@@ -27,3 +27,12 @@ test('backend validates and persists packing, preserves it for old clients, and 
  for(const patch of [{title:' '},{title:'a'.repeat(121)},{title:'a\nb'},{description:'a'.repeat(2001)},{description:5},{days:[{id:'blank',label:' ',subtitle:'',items:[]}]},{days:Array.from({length:61},(_,i)=>({id:'day-'+i,label:'day',subtitle:'',items:[]}))}])assert.equal((await handler(req('PUT',{version:9,document:{...before,...patch}}))).status,400);
  const days=Array.from({length:60},(_,i)=>({id:'day-'+i,label:'day',subtitle:'',items:[]}));assert.equal((await handler(req('PUT',{version:9,document:{...before,days}}))).status,200);
 });
+test('old clients preserve date and disabled reminder; invalid new fields are rejected',async()=>{
+ let handler,row={id:'test',version:1,document:{days:[{id:'d',label:'day',subtitle:'',date:'2026-10-26',items:[{id:'i',start:'12:00',end:'13:00',title:'Lunch',detail:'',done:false,reminder:false}]}]}};
+ vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname,'../backend/family-trip.js'),'utf8'),{Response,TextEncoder,TextDecoder,Uint8Array,Date,crypto:webcrypto,Deno:{env:{get:()=>''},serve:f=>handler=f},fetch:async(url,opts)=>{if(opts.method==='PATCH')Object.assign(row,JSON.parse(opts.body));return Response.json([row]);}});
+ const request=doc=>new Request('https://test.invalid',{method:'PUT',headers:{'x-family-key':'a'.repeat(64)},body:JSON.stringify({document:doc,version:row.version})});
+ const old=structuredClone(row.document);delete old.days[0].date;delete old.days[0].items[0].reminder;
+ assert.equal((await handler(request(old))).status,200);assert.equal(row.document.days[0].date,'2026-10-26');assert.equal(row.document.days[0].items[0].reminder,false);
+ for(const date of ['2026-02-30','2026-13-01','invalid']){const d=structuredClone(row.document);d.days[0].date=date;assert.equal((await handler(request(d))).status,400);}
+ const d=structuredClone(row.document);d.days[0].items[0].reminder='false';assert.equal((await handler(request(d))).status,400);
+});

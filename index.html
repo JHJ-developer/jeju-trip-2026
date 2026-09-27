@@ -100,6 +100,8 @@ button:disabled{opacity:.5;cursor:default}
 .btn:focus-visible,.tab:focus-visible,.iconbtn:focus-visible{outline:3px solid #3b82f6;outline-offset:2px}
 [hidden]{display:none!important}
 @media(max-width:480px){.item{grid-template-columns:26px 70px minmax(0,1fr) 36px;gap:6px}.time{font-size:12px}.title,.detail{overflow-wrap:anywhere}.sharetools .btn{flex:1}.actions{flex-wrap:wrap}}
+
+.reminder-toggle{display:flex;align-items:center;gap:10px;margin:16px 0;font-size:16px}.reminder-toggle input{width:22px;height:22px;flex-shrink:0}.reminder-note{font-size:13px;color:var(--muted);margin-top:5px}.push-device{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0}.push-settings{margin-top:16px}.push-settings summary{padding:12px 0;font-weight:650;cursor:pointer}.item:target,.item.highlight{outline:2px solid #2563eb;outline-offset:-2px;border-radius:8px}
 </style>
 </head>
 <body>
@@ -123,6 +125,12 @@ button:disabled{opacity:.5;cursor:default}
   <main id="content"></main>
   <details class="footerhint"><summary>추천 일정 참고 안내</summary><p>이동·관람 시간은 여유를 둔 계획값입니다. 운영 공지와 교통 상황에 따라 조정하세요.</p><a href="https://www.hallimpark.com/" target="_blank" rel="noopener">한림공원 공식 안내</a> · <a href="https://visitjeju.net/kr/detail/view?contentsid=CONT_000000000500697" target="_blank" rel="noopener">협재해수욕장 안내</a> · <a href="https://nexonmuseum.org" target="_blank" rel="noopener">넥슨뮤지엄 공식 안내</a></details>
   <div class="footerhint">Safari에서 홈 화면에 추가하면 앱처럼 사용할 수 있습니다. 가족용 링크로 연결하면 일정과 체크 상태가 함께 저장됩니다.</div>
+  <details class="push-settings" id="pushSettings"><summary>🔔 가족 일정 알림</summary>
+    <p class="smallnote" id="pushStatus" role="status">일정 시작 10분 전에 알려드립니다.</p>
+    <p class="smallnote">한국 시간 기준 · 일정별 미리 알림을 끄면 가족 모두에게 적용됩니다.</p>
+    <div class="sharetools"><button class="btn primary" id="pushEnable">이 기기에서 알림 받기</button><button class="btn" id="pushDisable" hidden>이 기기 알림 끄기</button><button class="btn" id="pushManage">등록 기기 관리</button></div>
+    <div id="pushDevices"></div>
+  </details>
   <details class="sharebar" id="familySettings">
     <summary><span>가족 공유</span><span class="disclosure-label"><span class="when-closed">펼치기 ⌄</span><span class="when-open">숨기기 ⌃</span></span></summary>
     <div class="sharebody">
@@ -144,6 +152,8 @@ button:disabled{opacity:.5;cursor:default}
       <div class="field"><label for="endInput">종료시각</label><input type="time" id="endInput"></div>
     </div>
     <div class="field"><label for="titleInput">일정명</label><input type="text" id="titleInput" maxlength="300" required></div>
+    <label class="reminder-toggle"><input type="checkbox" id="reminderInput" checked> 10분 전 미리 알림</label>
+    <p class="smallnote" id="reminderHint">시작 시간과 일차 날짜가 있어야 알림이 전송됩니다.</p>
     <div class="field"><label for="detailInput">메모</label><textarea id="detailInput" maxlength="5000"></textarea></div>
     <div class="actions">
       <button type="button" class="btn danger" id="deleteBtn">삭제</button>
@@ -202,12 +212,21 @@ button:disabled{opacity:.5;cursor:default}
 <dialog id="dayDialog" aria-labelledby="dayDialogTitle"><form class="modal" id="dayForm">
   <h3 id="dayDialogTitle">일차 수정</h3>
   <div class="field"><label for="dayLabelInput">탭 이름 · 날짜</label><input id="dayLabelInput" type="text" required maxlength="100" placeholder="예: 1일차 · 10/26 또는 도쿄 도착" autocomplete="off"></div>
+  <div class="field"><label for="dayDateInput">실제 날짜 (알림 기준)</label><input id="dayDateInput" type="date" min="2020-01-01" max="2100-12-31"></div>
+  <p class="smallnote">탭 이름과 별도로 지정합니다. 날짜가 없으면 미리 알림이 발송되지 않습니다.</p>
   <div class="field"><label for="daySubtitleInput">부가 설명</label><textarea id="daySubtitleInput" maxlength="1000" placeholder="이날의 주요 일정이나 메모"></textarea></div>
   <p class="smallnote">일차를 삭제하면 안에 있는 일정도 삭제됩니다. 다른 일차와 준비물은 유지됩니다.</p>
   <div class="actions"><button class="btn danger" id="deleteDayBtn" type="button">일차 삭제</button><button class="btn" id="dayCancel" type="button">취소</button><button class="btn primary" type="submit">저장</button></div>
 </form></dialog>
-<script src="./defaults.js?v=10"></script>
-<script src="./sync.js?v=10"></script>
-<script src="./app.js?v=10"></script>
+<dialog id="pushDialog" aria-labelledby="pushTitle"><form class="modal" id="pushForm">
+<h3 id="pushTitle">가족 알림 등록</h3><p class="smallnote">가족용 링크와 별도의 등록 코드로 승인된 기기 2대만 알림을 받습니다.</p>
+<div class="field"><label for="pushName">기기 이름</label><input id="pushName" maxlength="40" required placeholder="예: 아빠 아이폰"></div>
+<div class="field"><label for="pushCode">가족 알림 등록 코드</label><input id="pushCode" type="password" required autocomplete="off" maxlength="64"></div>
+<p class="smallnote" id="pushFeedback" role="status"></p><div class="actions"><button type="button" class="btn" id="pushCancel">취소</button><button type="submit" class="btn primary" id="pushSubmit">등록하고 알림 허용</button></div>
+</form></dialog>
+<script src="./defaults.js?v=11"></script>
+<script src="./sync.js?v=11"></script>
+<script src="./app.js?v=11"></script>
+<script src="./notifications.js?v=11"></script>
 </body>
 </html>

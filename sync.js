@@ -6,7 +6,7 @@
     if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
     const keys=Object.keys(a);return keys.length===Object.keys(b).length&&keys.every(k=>Object.prototype.hasOwnProperty.call(b,k)&&equal(a[k],b[k]));
   };
-  const fields=['start','end','title','detail','done'];
+  const fields=['start','end','title','detail','done','reminder'];
   const DEFAULT_INFO={title:'제주 가족여행 플래너',description:'2026.10.26 ~ 10.30 · 그랜드 하얏트 제주\n렌터카 10/26 12:30 대여 · 10/30 11:30 반납'};
   const infoOf=doc=>({title:doc.title??DEFAULT_INFO.title,description:doc.description??DEFAULT_INFO.description});
   const MAX_DAYS=60;
@@ -52,7 +52,7 @@
         continue;
       }
       if(!targetDay){if(dayConflict('삭제된 일차'))document.days.push(copy(mineDay));continue;}
-      for(const field of ['label','subtitle'])if(mineDay[field]!==beforeDay[field]){
+      for(const field of ['label','subtitle','date'])if(mineDay[field]!==beforeDay[field]){
         if(targetDay[field]===beforeDay[field]||targetDay[field]===mineDay[field]||dayConflict(field,mineDay[field],targetDay[field]))targetDay[field]=mineDay[field];
       }
       const ids=new Set([...beforeDay.items,...mineDay.items].map(i=>i.id));

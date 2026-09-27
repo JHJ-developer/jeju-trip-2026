@@ -3,6 +3,7 @@ const DEFAULT_PACKING={groups:[{id:'pack-ayoon',name:'아윤이짐',items:[{id:'
 const ORIGIN="https://jhj-developer.github.io";
 const headers={"Access-Control-Allow-Origin":ORIGIN,"Access-Control-Allow-Headers":"content-type,x-family-key","Access-Control-Allow-Methods":"GET,PUT,OPTIONS","Content-Type":"application/json","Cache-Control":"no-store","Vary":"Origin"};
 const reply=(status,body)=>new Response(JSON.stringify(body),{status,headers});
+function validDate(value){const time=Date.parse(value+"T00:00:00Z");return Number.isFinite(time)&&new Date(time).toISOString().slice(0,10)===value;}
 function valid(doc){
  if(!doc||!Array.isArray(doc.days)||doc.days.length>60)return false;
  if(doc.title!==undefined&&(typeof doc.title!=="string"||!doc.title.trim()||doc.title.length>120||/[\r\n]/.test(doc.title)))return false;
@@ -11,10 +12,12 @@ function valid(doc){
  for(const d of doc.days){
   if(!d||typeof d.id!=="string"||!/^[a-zA-Z0-9-]{1,64}$/.test(d.id)||ids.has(d.id))return false;
   ids.add(d.id);
+  if(d.date!==undefined&&(typeof d.date!=="string"||!/^$|^\d{4}-\d{2}-\d{2}$/.test(d.date)||d.date&&!validDate(d.date)))return false;
   if(typeof d.label!=="string"||!d.label.trim()||d.label.length>100||typeof d.subtitle!=="string"||d.subtitle.length>1000||!Array.isArray(d.items)||d.items.length>200)return false;
   for(const i of d.items){
    if(!i||typeof i.id!=="string"||!/^[a-zA-Z0-9-]{1,64}$/.test(i.id)||ids.has(i.id))return false;
    ids.add(i.id);
+   if(i.reminder!==undefined&&typeof i.reminder!=="boolean")return false;
    for(const k of ["start","end"])if(typeof i[k]!=="string"||!/^$|^(?:[01]\d|2[0-3]):[0-5]\d$/.test(i[k]))return false;
    if(Boolean(i.start)!==Boolean(i.end)||i.end<i.start||typeof i.title!=="string"||!i.title.trim()||i.title.length>300||typeof i.detail!=="string"||i.detail.length>5000||typeof i.done!=="boolean")return false;
   }
@@ -58,7 +61,16 @@ Deno.serve(async req=>{
   const buffer=new Uint8Array(bytes);let offset=0;for(const chunk of chunks){buffer.set(chunk,offset);offset+=chunk.length;}
   let input;try{input=JSON.parse(new TextDecoder().decode(buffer));}catch{return reply(400,{error:"json"});}
   if(!input||!Number.isInteger(input.version)||!valid(input.document))return reply(400,{error:"invalid_document"});
-  const doc={days:input.document.days.map(d=>({id:d.id,label:d.label,subtitle:d.subtitle,items:d.items.map(i=>({id:i.id,start:i.start,end:i.end,title:i.title,detail:i.detail,done:i.done}))}))};
+  const doc={days:input.document.days.map(d=>{
+   const old=row.document.days.find(x=>x.id===d.id),out={id:d.id,label:d.label,subtitle:d.subtitle,items:d.items.map(i=>{
+    const saved={id:i.id,start:i.start,end:i.end,title:i.title,detail:i.detail,done:i.done};
+    const reminder=i.reminder!==undefined?i.reminder:old?.items.find(x=>x.id===i.id)?.reminder;
+    if(reminder!==undefined)saved.reminder=reminder;
+    return saved;
+   })};
+   const date=d.date!==undefined?d.date:old?.date;if(date!==undefined)out.date=date;
+   return out;
+  })};
   // Old clients may omit packing. Preserve it while enforcing the same CAS version.
   const packing=input.document.packing||row.document.packing||DEFAULT_PACKING;
   doc.packing={groups:packing.groups.map(g=>({id:g.id,name:g.name,items:g.items.map(i=>({id:i.id,title:i.title,done:i.done}))}))};
