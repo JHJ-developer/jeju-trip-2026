@@ -42,10 +42,13 @@ dialog{border:0;border-radius:18px;padding:0;max-width:520px;width:calc(100% - 2
 dialog::backdrop{background:rgba(0,0,0,.38)}
 .modal{padding:18px}
 .modal h3{margin:0 0 14px;font-size:20px}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.field{margin-bottom:11px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.field{margin-bottom:11px;min-width:0}
 .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
-.field input,.field textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px;background:#fff}
+.field input,.field textarea{width:100%;min-width:0;max-width:100%;border:1px solid var(--line);border-radius:10px;padding:11px;background:#fff}
+.field input[type="time"],.field input[type="date"]{-webkit-appearance:none;appearance:none;display:block;box-sizing:border-box;min-height:48px;line-height:1.4;color:var(--text)}
+.field input::-webkit-date-and-time-value{text-align:left;min-width:0;min-height:1.4em}
+.field input::-webkit-datetime-edit{padding:0;min-width:0}
 .field textarea{min-height:90px;resize:vertical}
 .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:15px}
 .btn{border:1px solid var(--line);background:#fff;padding:10px 13px;border-radius:10px;font-weight:750}
@@ -126,7 +129,7 @@ button:disabled{opacity:.5;cursor:default}
   <details class="footerhint"><summary>추천 일정 참고 안내</summary><p>이동·관람 시간은 여유를 둔 계획값입니다. 운영 공지와 교통 상황에 따라 조정하세요.</p><a href="https://www.hallimpark.com/" target="_blank" rel="noopener">한림공원 공식 안내</a> · <a href="https://visitjeju.net/kr/detail/view?contentsid=CONT_000000000500697" target="_blank" rel="noopener">협재해수욕장 안내</a> · <a href="https://nexonmuseum.org" target="_blank" rel="noopener">넥슨뮤지엄 공식 안내</a></details>
   <div class="footerhint">Safari에서 홈 화면에 추가하면 앱처럼 사용할 수 있습니다. 가족용 링크로 연결하면 일정과 체크 상태가 함께 저장됩니다.</div>
   <details class="push-settings" id="pushSettings"><summary>🔔 가족 일정 알림</summary>
-    <p class="smallnote" id="pushStatus" role="status">일정 시작 10분 전에 알려드립니다.</p>
+    <p class="smallnote" id="pushStatus" role="status">일정 시작 10분 전과 사야 할 것·준비물 변경 시 알려드립니다.</p>
     <p class="smallnote">한국 시간 기준 · 일정별 미리 알림을 끄면 가족 모두에게 적용됩니다.</p>
     <div class="sharetools"><button class="btn primary" id="pushEnable">이 기기에서 알림 받기</button><button class="btn" id="pushDisable" hidden>이 기기 알림 끄기</button><button class="btn" id="pushManage">등록 기기 관리</button></div>
     <div id="pushDevices"></div>
@@ -224,9 +227,9 @@ button:disabled{opacity:.5;cursor:default}
 <div class="field"><label for="pushCode">가족 알림 등록 코드</label><input id="pushCode" type="password" required autocomplete="off" maxlength="64"></div>
 <p class="smallnote" id="pushFeedback" role="status"></p><div class="actions"><button type="button" class="btn" id="pushCancel">취소</button><button type="submit" class="btn primary" id="pushSubmit">등록하고 알림 허용</button></div>
 </form></dialog>
-<script src="./defaults.js?v=11"></script>
-<script src="./sync.js?v=11"></script>
-<script src="./app.js?v=11"></script>
-<script src="./notifications.js?v=11"></script>
+<script src="./defaults.js?v=12"></script>
+<script src="./sync.js?v=12"></script>
+<script src="./app.js?v=12"></script>
+<script src="./notifications.js?v=12"></script>
 </body>
 </html>

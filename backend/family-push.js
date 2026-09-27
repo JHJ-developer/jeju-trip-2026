@@ -1,5 +1,5 @@
 import webpush from 'npm:web-push@3.6.7';
-import {dueItems,validSubscription} from './push-logic.mjs';
+import {dueItems,validSubscription,dispatchListChanges} from './push-logic.mjs';
 const ORIGIN='https://jhj-developer.github.io';
 const headers={'Access-Control-Allow-Origin':ORIGIN,'Access-Control-Allow-Headers':'content-type,x-family-key,x-device-token','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Content-Type':'application/json','Cache-Control':'no-store','Vary':'Origin'};
 const reply=(status,body)=>new Response(JSON.stringify(body),{status,headers});
@@ -9,10 +9,15 @@ async function db(path,method='GET',body){
  const response=await fetch(Deno.env.get('SUPABASE_URL')+'/rest/v1/'+path,{method,headers:{apikey:service,Authorization:'Bearer '+service,'Content-Type':'application/json',Prefer:'return=representation'},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(15000)});
  if(!response.ok){const message=await response.text();throw new Error(message.includes('device_limit')?'device_limit':'storage');}return response.status===204?null:response.json();
 }
+async function sendNotification(config,device,payload,ttl){
+ const request=webpush.generateRequestDetails(device.subscription,JSON.stringify(payload),{TTL:ttl,urgency:'high',vapidDetails:{subject:'https://jhj-developer.github.io/jeju-trip-2026/',publicKey:config.public_key,privateKey:config.private_key}});
+ const response=await fetch(request.endpoint,{method:request.method,headers:request.headers,body:request.body,redirect:'error',signal:AbortSignal.timeout(12000)});
+ await response.body?.cancel();return response.status;
+}
 async function dispatch(config){
  const trips=await db('family_trips?id=eq.'+config.trip_id+'&select=document');
  const due=dueItems(trips[0]?.document||{});
- if(!due.length)return {accepted:0};
+ if(!due.length)return {accepted:await dispatchListChanges(config,{db,send:sendNotification})};
  const devices=await db('family_push_devices?trip_id=eq.'+config.trip_id+'&active=eq.true');
  let accepted=0;
  for(const task of due)for(const device of devices){
@@ -35,6 +40,7 @@ async function dispatch(config){
   if(status===404||status===410)await db('family_push_devices?id=eq.'+device.id,'PATCH',{active:false});
   await db(path,'PATCH',{status:status>=200&&status<300?'sent':'retry',error_code:status,updated_at:new Date().toISOString()});
  }
+ accepted+=await dispatchListChanges(config,{db,send:sendNotification});
  return {accepted};
 }
 Deno.serve(async req=>{

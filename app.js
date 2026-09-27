@@ -20,7 +20,7 @@ const CACHE_KEY=familyKey?'jejuFamilyCache_v1:'+familyKey:null;
 let cached=familyKey?read(CACHE_KEY):null;
 if(!cached||!validDocument(cached.base)||!validDocument(cached.document)||!Number.isInteger(cached.version))cached=null;
 let data=familyKey?(cached?copy(cached.document):{days:[]}):legacy;
-let active='shopping', editing=null, engine=null, deferredImport=false;
+let active=['shopping','packing'].includes(new URLSearchParams(location.search).get('tab'))?new URLSearchParams(location.search).get('tab'):'shopping', editing=null, engine=null, deferredImport=false;
 const dlg=$('editDialog'), conflictDialog=$('conflictDialog'), packDlg=$('packDialog'), noteDlg=$('noteDialog');
 const tripDlg=$('tripDialog'),daysDlg=$('daysDialog'),dayDlg=$('dayDialog');
 let tripBase=null,dayEditing=null;

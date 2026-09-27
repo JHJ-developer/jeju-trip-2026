@@ -49,3 +49,14 @@ Supabase `family-trip` Edge Function은 256비트 초대 키의 SHA-256 해시�
 - Push config, devices, deliveries는 RLS를 켜고 anon/authenticated/public 권한을 모두 회수합니다. 서비스 역할만 접근하며 RPC도 서비스 역할만 실행합니다. VAPID 비밀키·등록 코드·스케줄러 비밀키는 저장소에 넣지 않습니다. 정책이 없는 RLS 테이블은 공개 접근 차단을 의도한 구성입니다.
 - `backend/push-schema.sql`은 DB 구조, `backend/enable-push-schedule.sql`은 최초 날짜 연결과 cron 설정, `backend/family-push.js`는 발송/기기 API입니다. config 값은 별도로 안전하게 생성해 주입합니다. 스키마 SQL은 배포 이력의 재현용이며 정상 운영 중 다시 적용할 필요가 없습니다.
 - 검증: `node --test tests/*.test.cjs`; DOM UI 검증은 jsdom 26.1.0이 설치된 환경에서 `node tests/push-ui.cjs`. 기존 Playwright 시나리오는 `node tests/browser.cjs`입니다. 실제 휴대폰 잠금화면 수신은 각 기기 등록 후 확인해야 합니다.
+
+
+## 사야 할 것 · 준비물 변경 알림
+
+- 서버에 저장된 `shopping` 또는 `packing` 내용이 바뀌면, 변경 시점에 등록된 활성 가족 기기 모두에게 알립니다. 수정한 본인도 포함합니다. 항목·그룹 추가/수정/삭제와 체크 변경을 포함하며 조회, 동일 내용 재저장, 일정·메모 수정만으로는 목록 알림을 만들지 않습니다.
+- 문구는 `사야할것에 변경사항이 있습니다`, `준비물에 변경사항이 있습니다`입니다. 알림을 누르면 해당 탭으로 이동하고 최신 데이터를 조회합니다.
+- DB 트리거가 저장 트랜잭션 안에서 기기별 발송 대기 행을 생성하고, 커밋 후 비동기로 발송 함수를 호출합니다. 실패 시 기존 매분 cron이 재시도합니다. 최대 3회 시도, 1시간 유효기간이며 비활성 기기는 발송 직전 다시 제외합니다.
+- 원자적 선점과 버전/기기/목록별 고유 키로 중복 작업을 제한합니다. 응답 유실 시의 재전송은 동일 알림 tag를 사용합니다. 새로 등록한 기기에는 등록 전 변경 이력을 보내지 않습니다.
+- 배포 순서: `backend/list-change-notifications.sql` → 새 `family-push` 함수 → `backend/activate-list-changes.sql`. 실제 일정/준비물 데이터나 등록 기기를 변경하지 않습니다.
+- `tests/list-change-db.sql`은 별도 테스트 여행을 생성한 뒤 전체 트랜잭션을 rollback합니다. 실제 가족에게 테스트 알림을 보내지 않습니다.
+- Safari 시간 입력칸은 `minmax(0,1fr)` 그리드, 필드의 `min-width:0`, native appearance 제거로 입력칸 겹침과 오른쪽 넘침을 방지합니다.
