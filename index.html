@@ -45,7 +45,7 @@ dialog::backdrop{background:rgba(0,0,0,.38)}
 .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .field{margin-bottom:11px;min-width:0}
 .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
-.field input,.field textarea{width:100%;min-width:0;max-width:100%;border:1px solid var(--line);border-radius:10px;padding:11px;background:#fff}
+.field input,.field textarea{width:100%;min-width:0;max-width:100%;min-height:48px;line-height:1.4;border:1px solid var(--line);border-radius:10px;padding:11px;background:#fff}
 .field input[type="time"],.field input[type="date"]{-webkit-appearance:none;appearance:none;display:block;box-sizing:border-box;min-height:48px;line-height:1.4;color:var(--text)}
 .field input::-webkit-date-and-time-value{text-align:left;min-width:0;min-height:1.4em}
 .field input::-webkit-datetime-edit{padding:0;min-width:0}
@@ -227,9 +227,9 @@ button:disabled{opacity:.5;cursor:default}
 <div class="field"><label for="pushCode">가족 알림 등록 코드</label><input id="pushCode" type="password" required autocomplete="off" maxlength="64"></div>
 <p class="smallnote" id="pushFeedback" role="status"></p><div class="actions"><button type="button" class="btn" id="pushCancel">취소</button><button type="submit" class="btn primary" id="pushSubmit">등록하고 알림 허용</button></div>
 </form></dialog>
-<script src="./defaults.js?v=12"></script>
-<script src="./sync.js?v=12"></script>
-<script src="./app.js?v=12"></script>
-<script src="./notifications.js?v=12"></script>
+<script src="./defaults.js?v=13"></script>
+<script src="./sync.js?v=13"></script>
+<script src="./app.js?v=13"></script>
+<script src="./notifications.js?v=13"></script>
 </body>
 </html>

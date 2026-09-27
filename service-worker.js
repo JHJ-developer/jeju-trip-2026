@@ -1,5 +1,5 @@
-const CACHE='jeju-trip-v12-list-push';
-const ASSETS=['./','./index.html','./manifest.webmanifest','./defaults.js?v=12','./sync.js?v=12','./app.js?v=12','./notifications.js?v=12'];
+const CACHE='jeju-trip-v13-list-push';
+const ASSETS=['./','./index.html','./manifest.webmanifest','./defaults.js?v=13','./sync.js?v=13','./app.js?v=13','./notifications.js?v=13'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('jeju-trip-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',e=>{
