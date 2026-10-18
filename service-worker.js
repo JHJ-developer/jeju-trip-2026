@@ -1,5 +1,5 @@
-const CACHE='jeju-trip-v13-list-push';
-const ASSETS=['./','./index.html','./manifest.webmanifest','./defaults.js?v=13','./sync.js?v=13','./app.js?v=13','./notifications.js?v=13'];
+const CACHE='jeju-trip-v14-groceries-tabs';
+const ASSETS=['./','./index.html','./manifest.webmanifest','./defaults.js?v=14','./sync.js?v=14','./app.js?v=14','./notifications.js?v=14'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('jeju-trip-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',e=>{
@@ -22,14 +22,15 @@ self.addEventListener('fetch',e=>{
 self.addEventListener('push',event=>{
  let message={};try{message=event.data?.json()||{};}catch{}
  const title=typeof message.title==='string'?message.title:'가족 일정 알림';
- event.waitUntil(self.registration.showNotification(title,{body:typeof message.body==='string'?message.body:'여행 일정을 확인해 주세요.',tag:message.tag||'family-trip',data:{item:message.item||'',scope:['shopping','packing'].includes(message.scope)?message.scope:''}}));
+ event.waitUntil(self.registration.showNotification(title,{body:typeof message.body==='string'?message.body:'여행 일정을 확인해 주세요.',tag:message.tag||'family-trip',data:{item:message.item||'',scope:['shopping','packing','groceries'].includes(message.scope)?message.scope:''}}));
 });
 self.addEventListener('notificationclick',event=>{
  event.notification.close();const url=new URL('./',self.registration.scope);
  if(event.notification.data?.item)url.searchParams.set('item',event.notification.data.item);
- if(['shopping','packing'].includes(event.notification.data?.scope))url.searchParams.set('tab',event.notification.data.scope);
+ if(['shopping','packing','groceries'].includes(event.notification.data?.scope))url.searchParams.set('tab',event.notification.data.scope);
  event.waitUntil((async()=>{const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});
  for(const client of windows)if(client.url.startsWith(self.registration.scope)){client.postMessage({type:'OPEN_TRIP_ITEM',item:event.notification.data?.item||'',scope:event.notification.data?.scope||''});await client.focus();return;}
  await self.clients.openWindow(url.href);
  })());
 });
+

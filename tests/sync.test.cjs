@@ -118,3 +118,20 @@ test('two independent clients add days and edit metadata without losing existing
  await Promise.all([a.run(),b.run()]);await Promise.all([a.run(),b.run()]);
  assert.deepEqual(a.document,b.document);assert.equal(a.document.title,'새 여행');assert.equal(a.document.description,'숙소 변경');assert.equal(a.document.days.length,2);assert.ok(a.document.days[0].items[0].done);assert.ok(!a.dirty&&!b.dirty);
 });
+
+
+test('groceries stays separate and merges concurrent purchases and checks',()=>{
+ const base=copy(doc),mine=copy(doc),remote=copy(doc);
+ mine.groceries=copy(require('../sync.js').groceriesOf(base));
+ mine.groceries.groups[0].items.push({id:'water',title:'생수',done:false});
+ remote.shopping={groups:[{id:'shopping-list',name:'구매 목록',items:[{id:'hat',title:'모자',done:true}]}]};
+ const added=merge(base,mine,remote);assert.equal(added.conflicts.length,0);
+ assert.equal(added.document.groceries.groups[0].items[0].title,'생수');
+ assert.equal(added.document.shopping.groups[0].items[0].title,'모자');
+ const before=copy(added.document),local=copy(before),family=copy(before);
+ local.groceries.groups[0].items[0].done=true;
+ family.groceries.groups[0].items.push({id:'fruit',title:'과일',done:false});
+ const result=merge(before,local,family);assert.equal(result.conflicts.length,0);
+ assert.equal(result.document.groceries.groups[0].items[0].done,true);
+ assert.equal(result.document.groceries.groups[0].items.length,2);
+});

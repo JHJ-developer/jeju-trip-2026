@@ -12,6 +12,8 @@
   const MAX_DAYS=60;
   const DEFAULT_PACKING={groups:[{id:'pack-ayoon',name:'아윤이짐',items:[{id:'pack-pajamas',title:'잠옷',done:false},{id:'pack-toys',title:'장난감',done:false}]},{id:'pack-common',name:'공통',items:[{id:'pack-toothbrushes',title:'칫솔 3개',done:false}]}]};
   const DEFAULT_SHOPPING={groups:[{id:'shopping-list',name:'구매 목록',items:[{id:'shop-suitcase',title:'여행캐리어',done:false},{id:'shop-kettle',title:'전기포트',done:false}]}]};
+  const DEFAULT_GROCERIES={groups:[{id:'groceries-list',name:'장보기 목록',items:[]}]};
+  const groceriesOf=doc=>doc.groceries||DEFAULT_GROCERIES;
   const shoppingOf=doc=>doc.shopping||DEFAULT_SHOPPING;
   const packingOf=doc=>doc.packing||DEFAULT_PACKING;
   function mergePackingRecords(base,local,remote,group,choice,conflicts){
@@ -115,6 +117,7 @@
       document.packing={groups:mergePackingRecords(packingOf(base).groups,packingOf(local).groups,packingOf(remote).groups,true,choice,conflicts)};
     }
     if(base.shopping||local.shopping||remote.shopping)document.shopping={groups:mergePackingRecords(shoppingOf(base).groups,shoppingOf(local).groups,shoppingOf(remote).groups,true,choice,conflicts)};
+    if(base.groceries||local.groceries||remote.groceries)document.groceries={groups:mergePackingRecords(groceriesOf(base).groups,groceriesOf(local).groups,groceriesOf(remote).groups,true,choice,conflicts)};
     const beforeNote=base.note||'',mineNote=local.note||'',remoteNote=remote.note||'';
     if(mineNote!==beforeNote){
       if(remoteNote===beforeNote||remoteNote===mineNote||choice==='mine')document.note=mineNote;
@@ -178,7 +181,8 @@
       finally{this.busy=false;this.emit();}
     }
   }
-  const api={merge,SyncEngine,copy,equal,DEFAULT_PACKING,packingOf,DEFAULT_SHOPPING,shoppingOf,DEFAULT_INFO,infoOf,MAX_DAYS};
+  const api={DEFAULT_GROCERIES,groceriesOf,merge,SyncEngine,copy,equal,DEFAULT_PACKING,packingOf,DEFAULT_SHOPPING,shoppingOf,DEFAULT_INFO,infoOf,MAX_DAYS};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   else root.FamilySync=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
+
