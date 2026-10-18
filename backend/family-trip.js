@@ -22,7 +22,7 @@ function valid(doc){
    if(Boolean(i.start)!==Boolean(i.end)||i.end<i.start||typeof i.title!=="string"||!i.title.trim()||i.title.length>300||typeof i.detail!=="string"||i.detail.length>5000||typeof i.done!=="boolean")return false;
   }
  }
- for(const scope of ["packing","shopping"]){
+ for(const scope of ["packing","shopping","groceries"]){
  if(doc[scope]===undefined)continue;
   if(!doc[scope]||!Array.isArray(doc[scope].groups)||doc[scope].groups.length>30)return false;
   for(const group of doc[scope].groups){
@@ -76,6 +76,8 @@ Deno.serve(async req=>{
   doc.packing={groups:packing.groups.map(g=>({id:g.id,name:g.name,items:g.items.map(i=>({id:i.id,title:i.title,done:i.done}))}))};
   const shopping=input.document.shopping||row.document.shopping||DEFAULT_SHOPPING;
   doc.shopping={groups:shopping.groups.map(g=>({id:g.id,name:g.name,items:g.items.map(i=>({id:i.id,title:i.title,done:i.done}))}))};
+  const groceries=input.document.groceries||row.document.groceries;
+  if(groceries)doc.groceries={groups:groceries.groups.map(g=>({id:g.id,name:g.name,items:g.items.map(i=>({id:i.id,title:i.title,done:i.done}))}))};
   doc.note=input.document.note!==undefined?input.document.note:(row.document.note||"");
   // Older open tabs may omit new metadata; never erase it on their behalf.
   for(const field of ["title","description"]){
@@ -88,3 +90,4 @@ Deno.serve(async req=>{
   return reply(200,result[0]);
  }catch{return reply(503,{error:"unavailable"});}
 });
+

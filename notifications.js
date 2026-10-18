@@ -54,8 +54,9 @@ $('pushManage').onclick=async()=>{
 if('serviceWorker' in navigator)navigator.serviceWorker.addEventListener('message',event=>{
  if(event.data?.type!=='OPEN_TRIP_ITEM')return;const day=data.days.find(d=>d.items.some(i=>i.id===event.data.item));
  if(editorOpen()||engine?.dirty){$('pushStatus').textContent='편집을 저장한 뒤 알림의 일정을 확인해 주세요.';return;}
- if(['shopping','packing'].includes(event.data.scope)){const show=()=>{active=event.data.scope;render();$('content').scrollIntoView({block:'start',behavior:'smooth'});};if(engine)void engine.run().then(show);else show();return;}
+ if(['shopping','packing','groceries'].includes(event.data.scope)){const show=()=>{active=event.data.scope;render();$('content').scrollIntoView({block:'start',behavior:'smooth'});};if(engine)void engine.run().then(show);else show();return;}
  if(day){active=day.id;render();const el=$('item-'+event.data.item);el?.scrollIntoView({block:'center',behavior:'smooth'});el?.classList.add('highlight');}
  else if(engine)void engine.run().then(()=>{const d=data.days.find(d=>d.items.some(i=>i.id===event.data.item));if(d){active=d.id;render();$('item-'+event.data.item)?.scrollIntoView({block:'center'});}});
 });
 // No extra polling: subscription checks run only when the settings are opened.
+

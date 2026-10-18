@@ -20,7 +20,7 @@ const CACHE_KEY=familyKey?'jejuFamilyCache_v1:'+familyKey:null;
 let cached=familyKey?read(CACHE_KEY):null;
 if(!cached||!validDocument(cached.base)||!validDocument(cached.document)||!Number.isInteger(cached.version))cached=null;
 let data=familyKey?(cached?copy(cached.document):{days:[]}):legacy;
-let active=['shopping','packing'].includes(new URLSearchParams(location.search).get('tab'))?new URLSearchParams(location.search).get('tab'):'shopping', editing=null, engine=null, deferredImport=false;
+let active=['shopping','packing','groceries'].includes(new URLSearchParams(location.search).get('tab'))?new URLSearchParams(location.search).get('tab'):'shopping', editing=null, engine=null, deferredImport=false;
 const dlg=$('editDialog'), conflictDialog=$('conflictDialog'), packDlg=$('packDialog'), noteDlg=$('noteDialog');
 const tripDlg=$('tripDialog'),daysDlg=$('daysDialog'),dayDlg=$('dayDialog');
 let tripBase=null,dayEditing=null;
@@ -30,11 +30,49 @@ let noteBase=null;
 let packEditing=null;
 const VIEW_KEY='jejuPackingView:'+ (familyKey||'local');
 const packingView=read(VIEW_KEY)||{closed:{},onlyUnpacked:false};
-const listOf=(doc,scope)=>scope==='shopping'?shoppingOf(doc):packingOf(doc);
+const listOf=(doc,scope)=>scope==='groceries'?FamilySync.groceriesOf(doc):scope==='shopping'?shoppingOf(doc):packingOf(doc);
 const s=$('startInput'),e=$('endInput'),t=$('titleInput'),m=$('detailInput');
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 const uid=()=>crypto.randomUUID();
 const pct=items=>items.length?Math.round(items.filter(i=>i.done).length/items.length*100):0;
+const TAB_ORDER_KEY='jejuTabOrder:'+(familyKey||'local');
+let suppressTabClickUntil=0;
+function bindTabDrag(){
+  const tabs=$('tabs');
+  tabs.querySelectorAll('[data-id]').forEach(button=>{
+    button.onclick=()=>{if(Date.now()<suppressTabClickUntil)return;active=button.dataset.id;render();};
+    button.oncontextmenu=e=>e.preventDefault();
+    button.onkeydown=e=>{
+      if(!e.altKey||!['ArrowLeft','ArrowRight'].includes(e.key))return;
+      e.preventDefault();const other=e.key==='ArrowLeft'?button.previousElementSibling:button.nextElementSibling;
+      if(!other?.dataset.id)return;
+      if(e.key==='ArrowLeft')tabs.insertBefore(button,other);else tabs.insertBefore(other,button);
+      write(TAB_ORDER_KEY,[...tabs.querySelectorAll('[data-id]')].map(b=>b.dataset.id));button.focus();
+    };
+    button.onpointerdown=e=>{
+      if(e.button!==0)return;
+      const x=e.clientX,y=e.clientY,initialScroll=tabs.scrollLeft;let dragging=false;
+      const timer=setTimeout(()=>{dragging=true;button.classList.add('tab-dragging');button.setPointerCapture(e.pointerId);suppressTabClickUntil=Date.now()+1000;},350);
+      const move=event=>{
+        if(!dragging){if(Math.hypot(event.clientX-x,event.clientY-y)>8){clearTimeout(timer);tabs.scrollLeft=initialScroll+x-event.clientX;suppressTabClickUntil=Date.now()+500;}return;}
+        event.preventDefault();suppressTabClickUntil=Date.now()+1000;
+        const bounds=tabs.getBoundingClientRect();
+        if(event.clientX<bounds.left+35)tabs.scrollLeft-=20;
+        if(event.clientX>bounds.right-35)tabs.scrollLeft+=20;
+        const target=document.elementFromPoint(event.clientX,event.clientY)?.closest('[data-id]');
+        if(!target||target.parentElement!==tabs||target===button)return;
+        const buttons=[...tabs.querySelectorAll('[data-id]')];
+        if(buttons.indexOf(button)<buttons.indexOf(target))tabs.insertBefore(button,target.nextSibling);else tabs.insertBefore(button,target);
+      };
+      const finish=()=>{
+        clearTimeout(timer);button.classList.remove('tab-dragging');
+        if(dragging){write(TAB_ORDER_KEY,[...tabs.querySelectorAll('[data-id]')].map(b=>b.dataset.id));suppressTabClickUntil=Date.now()+500;}
+        button.removeEventListener('pointermove',move);button.removeEventListener('pointerup',finish);button.removeEventListener('pointercancel',finish);
+      };
+      button.addEventListener('pointermove',move);button.addEventListener('pointerup',finish);button.addEventListener('pointercancel',finish);
+    };
+  });
+}
 function render(){
   const target=new URLSearchParams(location.search).get('item');
   if(target&&!window.tripNotificationOpened&&data.days.length){const day=data.days.find(d=>d.items.some(i=>i.id===target));if(day){active=day.id;window.tripNotificationOpened=true;setTimeout(()=>{const el=$('item-'+target);if(el){el.classList.add('highlight');el.scrollIntoView({block:'center',behavior:'smooth'});}},100);}}
@@ -45,14 +83,17 @@ function render(){
   if(daysDlg.open)renderDays();
   $('noteText').textContent=data.note||'가족과 공유할 한 줄 메모를 남겨보세요.';
   $('noteButton').disabled=!!(familyKey&&(!engine?.ready||engine?.errorStatus===401||engine?.pending));
-  if(!['packing','shopping'].includes(active)&&!data.days.some(d=>d.id===active))active='shopping';
+  if(!['packing','shopping','groceries'].includes(active)&&!data.days.some(d=>d.id===active))active='shopping';
   const tabScroll=$('tabs').scrollLeft;
   const manageDaysButton=$('manageDaysBtn');
-  $('tabs').innerHTML=`<button class="tab ${active==='shopping'?'active':''}" aria-pressed="${active==='shopping'}" data-id="shopping">사야할 것</button><button class="tab ${active==='packing'?'active':''}" aria-pressed="${active==='packing'}" data-id="packing">준비물</button>`+data.days.map(d=>`<button class="tab ${active===d.id?'active':''}" aria-pressed="${active===d.id}" data-id="${esc(d.id)}">${esc(d.label)}</button>`).join('');
+  const labels={shopping:'사야할 것',groceries:'장보기',packing:'준비물',...Object.fromEntries(data.days.map(d=>[d.id,d.label]))};
+  const ids=Object.keys(labels),saved=read(TAB_ORDER_KEY);
+  const order=[...new Set([...(Array.isArray(saved)?saved:[]),...ids])].filter(id=>ids.includes(id));
+  $('tabs').innerHTML=order.map(id=>`<button class="tab ${active===id?'active':''}" aria-pressed="${active===id}" data-id="${esc(id)}">${esc(labels[id])}</button>`).join('');
   $('tabs').append(manageDaysButton);
-  $('tabs').querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>{active=b.dataset.id;render();});
+  bindTabDrag();
   $('tabs').scrollLeft=tabScroll;
-  if(['packing','shopping'].includes(active)&&(!familyKey||engine?.ready)){renderPacking(active);return;}
+  if(['packing','shopping','groceries'].includes(active)&&(!familyKey||engine?.ready)){renderPacking(active);return;}
   $('overallLabel').textContent='여행 일정 진척도';
   const day=data.days.find(d=>d.id===active);
   if(!day){$('content').innerHTML='<p class="smallnote">가족 일정을 불러오는 중입니다. 연결 상태를 확인해 주세요.</p>';return;}
@@ -70,11 +111,11 @@ function render(){
   const progress=pct(data.days.flatMap(d=>d.items));$('overallText').textContent=progress+'%';$('overallBar').style.width=progress+'%';
 }
 function renderPacking(scope='packing'){
-  const shopping=scope==='shopping',noun=shopping?'구매 항목':'준비물';
+  const shopping=scope!=='packing',noun=shopping?'구매 항목':'준비물';
   const groups=listOf(data,scope).groups,items=groups.flatMap(g=>g.items),done=items.filter(i=>i.done).length;
   const disabled=familyKey&&(!engine?.ready||engine?.errorStatus===401||!!engine?.pending);
   $('overallLabel').textContent=shopping?'구매 완료':'준비물 챙김';$('overallText').textContent=done+' / '+items.length+'개';$('overallBar').style.width=pct(items)+'%';
-  $('content').innerHTML=`<div class="packing-head"><div><h2>${shopping?'사야할 것':'준비물'}</h2><p>${shopping?'구매한 물건을 체크해 주세요.':'챙긴 물건을 체크해 주세요.'}</p></div>${shopping?'':`<button class="btn" id="addPackGroup" ${disabled?'disabled':''}>＋ 그룹 추가</button>`}</div>`+
+  $('content').innerHTML=`<div class="packing-head"><div><h2>${scope==='groceries'?'장보기':shopping?'사야할 것':'준비물'}</h2><p>${shopping?'구매한 물건을 체크해 주세요.':'챙긴 물건을 체크해 주세요.'}</p></div>${shopping?'':`<button class="btn" id="addPackGroup" ${disabled?'disabled':''}>＋ 그룹 추가</button>`}</div>`+
     (shopping?'':`<label class="pack-filter"><input type="checkbox" id="onlyUnpacked" ${packingView.onlyUnpacked?'checked':''}> 미챙김만 보기</label>`)+
     groups.map(g=>{
       const visible=shopping||!packingView.onlyUnpacked?g.items:g.items.filter(i=>!i.done);
@@ -94,7 +135,7 @@ function renderPacking(scope='packing'){
   });
 }
 function openPack(kind,groupId,itemId,scope='packing'){
-  const noun=scope==='shopping'?'구매 항목':'준비물';
+  const noun=scope!=='packing'?'구매 항목':'준비물';
   const groups=listOf(data,scope).groups,group=groups.find(g=>g.id===groupId),item=group?.items.find(i=>i.id===itemId);
   if(kind==='group'&&!group&&groups.length>=30){alert('그룹은 30개까지 추가할 수 있습니다.');return;}
   if(kind==='item'&&!item&&group.items.length>=200){alert('그룹당 준비물은 200개까지 추가할 수 있습니다.');return;}
@@ -296,3 +337,4 @@ if('serviceWorker' in navigator){
   window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').then(r=>r.update()).catch(()=>{}));
 }
 render();updateStatus();
+

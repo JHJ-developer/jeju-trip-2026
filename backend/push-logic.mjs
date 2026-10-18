@@ -20,7 +20,7 @@ export function validSubscription(sub){
 }
 
 export function listChangePayload(change){
- const body={shopping:'사야할것에 변경사항이 있습니다',packing:'준비물에 변경사항이 있습니다'}[change.scope];
+ const body={shopping:'사야할것에 변경사항이 있습니다',groceries:'장보기에 변경사항이 있습니다',packing:'준비물에 변경사항이 있습니다'}[change.scope];
  if(!body)throw new Error('Invalid list scope');
  return {title:'가족 여행 알림',body,scope:change.scope,tag:`change-${change.trip_id}-${change.scope}-${change.document_version}`};
 }
@@ -42,3 +42,4 @@ export async function dispatchListChanges(config,{db,send,now=()=>Date.now()}){
  }
  return accepted;
 }
+
