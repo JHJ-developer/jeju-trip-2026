@@ -105,7 +105,6 @@ button:disabled{opacity:.5;cursor:default}
 @media(max-width:480px){.item{grid-template-columns:26px 70px minmax(0,1fr) 36px;gap:6px}.time{font-size:12px}.title,.detail{overflow-wrap:anywhere}.sharetools .btn{flex:1}.actions{flex-wrap:wrap}}
 
 .reminder-toggle{display:flex;align-items:center;gap:10px;margin:16px 0;font-size:16px}.reminder-toggle input{width:22px;height:22px;flex-shrink:0}.reminder-note{font-size:13px;color:var(--muted);margin-top:5px}.push-device{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0}.push-settings{margin-top:16px}.push-settings summary{padding:12px 0;font-weight:650;cursor:pointer}.item:target,.item.highlight{outline:2px solid #2563eb;outline-offset:-2px;border-radius:8px}
-.tab[data-id]{touch-action:pan-y;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}.tab-dragging{opacity:.65;outline:2px solid var(--accent);touch-action:none}
 </style>
 </head>
 <body>
@@ -123,7 +122,7 @@ button:disabled{opacity:.5;cursor:default}
     <div class="progress"><div id="overallBar"></div></div>
   </div>
 
-  <div class="footerhint">탭을 길게 누른 뒤 끌어서 순서를 바꾸세요. 옆으로 밀면 다른 탭을 볼 수 있습니다. 순서는 이 기기에 저장됩니다. (키보드: Alt+←/→)</div>
+  <div class="footerhint">탭을 옆으로 밀어 선택하세요. 일차 관리에서 날짜·이름·순서를 바꿀 수 있습니다.</div>
   <div id="updateNotice" class="footerhint" hidden>새 버전이 준비되었습니다. 수정 내용을 저장한 뒤 새로고침해 주세요.</div>
   <div class="tabs" id="tabs"><button class="tab manage-tab" id="manageDaysBtn"><span aria-hidden="true">⚙</span> 일차 관리</button></div>
   <main id="content"></main>
@@ -228,10 +227,10 @@ button:disabled{opacity:.5;cursor:default}
 <div class="field"><label for="pushCode">가족 알림 등록 코드</label><input id="pushCode" type="password" required autocomplete="off" maxlength="64"></div>
 <p class="smallnote" id="pushFeedback" role="status"></p><div class="actions"><button type="button" class="btn" id="pushCancel">취소</button><button type="submit" class="btn primary" id="pushSubmit">등록하고 알림 허용</button></div>
 </form></dialog>
-<script src="./defaults.js?v=14"></script>
-<script src="./sync.js?v=14"></script>
-<script src="./app.js?v=14"></script>
-<script src="./notifications.js?v=14"></script>
+<script src="./defaults.js?v=15"></script>
+<script src="./sync.js?v=15"></script>
+<script src="./app.js?v=15"></script>
+<script src="./notifications.js?v=15"></script>
 </body>
 </html>
 
