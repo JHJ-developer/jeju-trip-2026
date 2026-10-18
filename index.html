@@ -105,6 +105,9 @@ button:disabled{opacity:.5;cursor:default}
 @media(max-width:480px){.item{grid-template-columns:26px 70px minmax(0,1fr) 36px;gap:6px}.time{font-size:12px}.title,.detail{overflow-wrap:anywhere}.sharetools .btn{flex:1}.actions{flex-wrap:wrap}}
 
 .reminder-toggle{display:flex;align-items:center;gap:10px;margin:16px 0;font-size:16px}.reminder-toggle input{width:22px;height:22px;flex-shrink:0}.reminder-note{font-size:13px;color:var(--muted);margin-top:5px}.push-device{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0}.push-settings{margin-top:16px}.push-settings summary{padding:12px 0;font-weight:650;cursor:pointer}.item:target,.item.highlight{outline:2px solid #2563eb;outline-offset:-2px;border-radius:8px}
+
+.journey-card{background:#edf5ff;border:1px solid #dce8f6;border-radius:16px;padding:16px;margin-top:14px}.journey-label{font-size:13px;color:#355d89;font-weight:750}.journey-card h2{font-size:21px;margin:8px 0;overflow-wrap:anywhere}.journey-card p{font-size:14px;color:var(--muted);line-height:1.5;margin:6px 0;white-space:pre-wrap}.journey-actions,.visit-actions,.day-shortcuts,.list-filters{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.journey-actions:empty{display:none}.journey-reset{display:block;border:0;background:transparent;padding:8px 0 0;color:var(--muted);font-size:12px;min-height:32px}.visit-link{text-decoration:none;color:var(--text);display:inline-flex;align-items:center;justify-content:center;font-size:13px}.day-shortcuts{margin:0 0 12px}.day-shortcuts .btn{font-size:13px}.visit-panel{margin-top:10px;padding:10px;background:#f5f7fa;border-radius:10px;font-size:13px}.visit-panel summary{cursor:pointer;font-weight:650;min-height:32px;line-height:32px}.visit-row{display:grid;grid-template-columns:68px minmax(0,1fr);gap:8px;margin-top:8px;line-height:1.6}.visit-row>span{color:var(--muted)}.visit-row>div{white-space:pre-wrap;overflow-wrap:anywhere}.visit-edit{font-size:13px;margin-top:10px}.visit-fields{margin:14px 0}.visit-fields summary{padding:12px 0;cursor:pointer;font-weight:750}.visit-fields .field{margin-top:10px}.pack-title{display:block;font-weight:700}.pack-note{display:block;color:var(--muted);font-size:13px;margin-top:5px;white-space:pre-wrap}.quantity-badge{display:inline-block;background:#f0f4f8;border:1px solid var(--line);border-radius:7px;padding:3px 8px;font-size:12px;margin-top:7px;color:var(--text)}.pack-item.done .pack-note,.pack-item.done .quantity-badge{opacity:.6;text-decoration:none}.list-filters{margin:0 0 12px}.list-filters .selected{background:var(--accent);border-color:var(--accent);color:#fff}
+@media(max-width:480px){.journey-card h2{font-size:19px}.visit-row{grid-template-columns:1fr;gap:2px}.visit-actions .btn{flex:1 1 auto}.item .visit-panel{margin-left:-76px;margin-top:14px}.item .visit-panel .btn{min-height:42px}.day-tools{gap:4px}}
 </style>
 </head>
 <body>
@@ -117,6 +120,7 @@ button:disabled{opacity:.5;cursor:default}
 
   <button class="trip-note" id="noteButton" aria-label="한 줄 메모 수정"><span class="note-label">메모</span><span id="noteText">가족과 공유할 한 줄 메모를 남겨보세요.</span><span aria-hidden="true">✎</span></button>
   <p class="smallnote" id="storageWarning" role="alert" hidden>이 기기에 임시 저장하지 못했습니다. 온라인 저장 완료를 확인하기 전에는 창을 닫지 마세요.</p>
+  <section class="journey-card" id="journeyCard" aria-label="여행 진행 안내" hidden></section>
   <div class="topcard">
     <div class="progressrow"><span id="overallLabel">전체 진척도</span><strong id="overallText">0%</strong></div>
     <div class="progress"><div id="overallBar"></div></div>
@@ -158,6 +162,18 @@ button:disabled{opacity:.5;cursor:default}
     <label class="reminder-toggle"><input type="checkbox" id="reminderInput" checked> 10분 전 미리 알림</label>
     <p class="smallnote" id="reminderHint">시작 시간과 일차 날짜가 있어야 알림이 전송됩니다.</p>
     <div class="field"><label for="detailInput">메모</label><textarea id="detailInput" maxlength="5000"></textarea></div>
+    <details class="visit-fields" id="visitFields"><summary>장소·주차·예약 정보</summary>
+      <p class="smallnote">장소명·주소는 지도 검색에 사용합니다. 지도 공유 링크를 넣으면 해당 링크로 바로 연결됩니다.</p>
+      <div class="field"><label for="visit-place">장소명·주소</label><input id="visit-place" type="text" maxlength="300" placeholder="정확한 상호명 또는 주소"></div>
+      <div class="field"><label for="visit-placeUrl">장소 지도·길찾기 링크</label><input id="visit-placeUrl" type="url" maxlength="2000" placeholder="https://"></div>
+      <div class="field"><label for="visit-parking">주차장명·입구 주소</label><input id="visit-parking" type="text" maxlength="300" placeholder="전용주차장 이름 또는 입구 주소"></div>
+      <div class="field"><label for="visit-parkingUrl">주차장 지도·길찾기 링크</label><input id="visit-parkingUrl" type="url" maxlength="2000" placeholder="https://"></div>
+      <div class="field"><label for="visit-reservation">예약 정보</label><input id="visit-reservation" type="text" maxlength="500" placeholder="예약 시각 · 인원 · 예약번호"></div>
+      <div class="field"><label for="visit-childNote">아윤 메모</label><input id="visit-childNote" type="text" maxlength="500" placeholder="먹을 수 있는 메뉴 · 챙길 물품"></div>
+      <div class="field"><label for="visit-phone">전화번호</label><input id="visit-phone" type="tel" maxlength="40" placeholder="064-000-0000"></div>
+      <div class="field"><label for="visit-bookingUrl">예약 확인 링크</label><input id="visit-bookingUrl" type="url" maxlength="2000" placeholder="https://"></div>
+      <div class="field"><label for="visit-ticketUrl">티켓 확인 링크</label><input id="visit-ticketUrl" type="url" maxlength="2000" placeholder="https://"></div>
+    </details>
     <div class="actions">
       <button type="button" class="btn danger" id="deleteBtn">삭제</button>
       <button type="button" class="btn" id="cancelBtn">취소</button>
@@ -190,6 +206,7 @@ button:disabled{opacity:.5;cursor:default}
 <dialog id="packDialog" aria-labelledby="packDialogTitle"><form class="modal" id="packForm">
   <h3 id="packDialogTitle">준비물 추가</h3>
   <div class="field"><label for="packName" id="packNameLabel">준비물명</label><input id="packName" type="text" required maxlength="300" autocomplete="off"></div>
+  <div id="groceryFields" hidden><div class="field"><label for="packQuantity">수량</label><input id="packQuantity" type="text" maxlength="40" placeholder="예: 8개, 2팩"></div><div class="field"><label for="packNote">물품 메모</label><textarea id="packNote" maxlength="500" placeholder="예: 작은 병으로 준비"></textarea></div></div>
   <div class="actions"><button class="btn danger" id="packDelete" type="button">삭제</button><button class="btn" id="packCancel" type="button">취소</button><button class="btn primary" type="submit">저장</button></div>
 </form></dialog>
 <dialog id="noteDialog" aria-labelledby="noteTitle"><form class="modal" id="noteForm">
@@ -227,10 +244,10 @@ button:disabled{opacity:.5;cursor:default}
 <div class="field"><label for="pushCode">가족 알림 등록 코드</label><input id="pushCode" type="password" required autocomplete="off" maxlength="64"></div>
 <p class="smallnote" id="pushFeedback" role="status"></p><div class="actions"><button type="button" class="btn" id="pushCancel">취소</button><button type="submit" class="btn primary" id="pushSubmit">등록하고 알림 허용</button></div>
 </form></dialog>
-<script src="./defaults.js?v=16"></script>
-<script src="./sync.js?v=16"></script>
-<script src="./app.js?v=16"></script>
-<script src="./notifications.js?v=16"></script>
+<script src="./defaults.js?v=17"></script>
+<script src="./sync.js?v=17"></script>
+<script src="./app.js?v=17"></script>
+<script src="./notifications.js?v=17"></script>
 </body>
 </html>
 

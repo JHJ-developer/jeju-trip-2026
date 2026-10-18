@@ -1,3 +1,5 @@
+const VISIT_LIMITS={place:300,placeUrl:2000,parking:300,parkingUrl:2000,reservation:500,childNote:500,phone:40,bookingUrl:2000,ticketUrl:2000};
+function safeLink(value){if(!value)return true;try{const u=new URL(value);return ['http:','https:'].includes(u.protocol)&&!u.username&&!u.password;}catch{return false;}}
 const DEFAULT_SHOPPING={groups:[{id:'shopping-list',name:'구매 목록',items:[{id:'shop-suitcase',title:'여행캐리어',done:false},{id:'shop-kettle',title:'전기포트',done:false}]}]};
 const DEFAULT_PACKING={groups:[{id:'pack-ayoon',name:'아윤이짐',items:[{id:'pack-pajamas',title:'잠옷',done:false},{id:'pack-toys',title:'장난감',done:false}]},{id:'pack-common',name:'공통',items:[{id:'pack-toothbrushes',title:'칫솔 3개',done:false}]}]};
 const ORIGIN="https://jhj-developer.github.io";
@@ -8,6 +10,7 @@ function valid(doc){
  if(!doc||!Array.isArray(doc.days)||doc.days.length>60)return false;
  if(doc.title!==undefined&&(typeof doc.title!=="string"||!doc.title.trim()||doc.title.length>120||/[\r\n]/.test(doc.title)))return false;
  if(doc.description!==undefined&&(typeof doc.description!=="string"||doc.description.length>2000))return false;
+ if(doc.travel!==undefined&&(!doc.travel||typeof doc.travel.started!=="boolean"||typeof doc.travel.dayId!=="string"||!/^$|^[a-zA-Z0-9-]{1,64}$/.test(doc.travel.dayId)))return false;
  const ids=new Set();
  for(const d of doc.days){
   if(!d||typeof d.id!=="string"||!/^[a-zA-Z0-9-]{1,64}$/.test(d.id)||ids.has(d.id))return false;
@@ -17,6 +20,7 @@ function valid(doc){
   for(const i of d.items){
    if(!i||typeof i.id!=="string"||!/^[a-zA-Z0-9-]{1,64}$/.test(i.id)||ids.has(i.id))return false;
    ids.add(i.id);
+   for(const [key,max] of Object.entries(VISIT_LIMITS))if(i[key]!==undefined&&(typeof i[key]!=="string"||i[key].length>max||(key.endsWith('Url')&&!safeLink(i[key]))||(key==='phone'&&!/^[+0-9() .-]*$/.test(i[key]))))return false;
    if(i.reminder!==undefined&&typeof i.reminder!=="boolean")return false;
    for(const k of ["start","end"])if(typeof i[k]!=="string"||!/^$|^(?:[01]\d|2[0-3]):[0-5]\d$/.test(i[k]))return false;
    if(Boolean(i.start)!==Boolean(i.end)||i.end<i.start||typeof i.title!=="string"||!i.title.trim()||i.title.length>300||typeof i.detail!=="string"||i.detail.length>5000||typeof i.done!=="boolean")return false;
@@ -30,6 +34,8 @@ function valid(doc){
    ids.add(group.id);
    for(const item of group.items){
     if(!item||typeof item.id!=="string"||!/^[a-zA-Z0-9-]{1,64}$/.test(item.id)||ids.has(item.id)||typeof item.title!=="string"||!item.title.trim()||item.title.length>300||typeof item.done!=="boolean")return false;
+    if(item.quantity!==undefined&&(typeof item.quantity!=="string"||item.quantity.length>40))return false;
+    if(item.note!==undefined&&(typeof item.note!=="string"||item.note.length>500))return false;
     ids.add(item.id);
    }
   }
@@ -66,6 +72,10 @@ Deno.serve(async req=>{
     const saved={id:i.id,start:i.start,end:i.end,title:i.title,detail:i.detail,done:i.done};
     const reminder=i.reminder!==undefined?i.reminder:old?.items.find(x=>x.id===i.id)?.reminder;
     if(reminder!==undefined)saved.reminder=reminder;
+    for(const field of Object.keys(VISIT_LIMITS)){
+     const value=i[field]!==undefined?i[field]:old?.items.find(x=>x.id===i.id)?.[field];
+     if(value!==undefined)saved[field]=value;
+    }
     return saved;
    })};
    const date=d.date!==undefined?d.date:old?.date;if(date!==undefined)out.date=date;
@@ -77,7 +87,13 @@ Deno.serve(async req=>{
   const shopping=input.document.shopping||row.document.shopping||DEFAULT_SHOPPING;
   doc.shopping={groups:shopping.groups.map(g=>({id:g.id,name:g.name,items:g.items.map(i=>({id:i.id,title:i.title,done:i.done}))}))};
   const groceries=input.document.groceries||row.document.groceries;
-  if(groceries)doc.groceries={groups:groceries.groups.map(g=>({id:g.id,name:g.name,items:g.items.map(i=>({id:i.id,title:i.title,done:i.done}))}))};
+  if(groceries)doc.groceries={groups:groceries.groups.map(g=>({id:g.id,name:g.name,items:g.items.map(i=>{
+    const saved={id:i.id,title:i.title,done:i.done},old=row.document.groceries?.groups.find(x=>x.id===g.id)?.items.find(x=>x.id===i.id);
+    for(const key of ['quantity','note']){const value=i[key]!==undefined?i[key]:old?.[key];if(value!==undefined)saved[key]=value;}
+    return saved;
+  })}))};
+  const travel=input.document.travel!==undefined?input.document.travel:row.document.travel;
+  if(travel)doc.travel={started:travel.started,dayId:travel.dayId};
   doc.note=input.document.note!==undefined?input.document.note:(row.document.note||"");
   // Older open tabs may omit new metadata; never erase it on their behalf.
   for(const field of ["title","description"]){

@@ -6,7 +6,8 @@
     if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
     const keys=Object.keys(a);return keys.length===Object.keys(b).length&&keys.every(k=>Object.prototype.hasOwnProperty.call(b,k)&&equal(a[k],b[k]));
   };
-  const fields=['start','end','title','detail','done','reminder'];
+  const VISIT_FIELDS=['place','placeUrl','parking','parkingUrl','reservation','childNote','phone','bookingUrl','ticketUrl'];
+  const fields=['start','end','title','detail','done','reminder',...VISIT_FIELDS];
   const DEFAULT_INFO={title:'제주 가족여행 플래너',description:'2026.10.26 ~ 10.30 · 그랜드 하얏트 제주\n렌터카 10/26 12:30 대여 · 10/30 11:30 반납'};
   const infoOf=doc=>({title:doc.title??DEFAULT_INFO.title,description:doc.description??DEFAULT_INFO.description});
   const MAX_DAYS=60;
@@ -26,8 +27,8 @@
       else if(!mine){if(theirs&&(equal(before,theirs)||conflict('항목 삭제')))result=result.filter(x=>x.id!==id);}
       else if(!theirs){if(conflict('삭제된 항목'))result.push(copy(mine));}
       else{
-        for(const key of group?['name']:['title','done'])if(mine[key]!==before[key]){
-          if(theirs[key]===before[key]||theirs[key]===mine[key]||conflict(key==='name'?'그룹명':key==='done'?'완료 체크':'항목명'))theirs[key]=mine[key];
+        for(const key of group?['name']:['title','done','quantity','note'])if(mine[key]!==before[key]){
+          if(theirs[key]===before[key]||theirs[key]===mine[key]||conflict(key==='name'?'그룹명':key==='done'?'완료 체크':key==='quantity'?'수량':key==='note'?'물품 메모':'항목명'))theirs[key]=mine[key];
         }
         if(group)theirs.items=mergePackingRecords(before.items,mine.items,theirs.items,false,choice,conflicts);
       }
@@ -35,6 +36,20 @@
     return result;
   }
 
+  const travelOf=doc=>doc.travel||{started:false,dayId:''};
+  const orderedItems=day=>[...day.items].sort((a,b)=>(a.start||'99:99').localeCompare(b.start||'99:99')||(a.end||'').localeCompare(b.end||''));
+  function journeyView(doc){
+    const days=doc.days.filter(d=>d.items.length),travel=travelOf(doc);
+    if(!days.length)return {state:'empty'};
+    const firstPending=days.find(d=>d.items.some(i=>!i.done));
+    if(!travel.started){const day=firstPending||days[0];return {state:'before',day,item:orderedItems(day).find(i=>!i.done)};}
+    const day=days.find(d=>d.id===travel.dayId)||firstPending||days[days.length-1];
+    const item=orderedItems(day).find(i=>!i.done);
+    if(item)return {state:'active',day,item};
+    const next=days.slice(days.indexOf(day)+1).find(d=>d.items.some(i=>!i.done));
+    const earlier=days.slice(0,days.indexOf(day)).find(d=>d.items.some(i=>!i.done));
+    return {state:next||earlier?'dayComplete':'complete',day,next:next||earlier,nextItem:next||earlier?orderedItems(next||earlier).find(i=>!i.done):null};
+  }
   // Three-way merge: only locally changed fields are applied to the latest document.
   function merge(base,local,remote,choice){
     const document=copy(remote), conflicts=[];
@@ -118,6 +133,10 @@
     }
     if(base.shopping||local.shopping||remote.shopping)document.shopping={groups:mergePackingRecords(shoppingOf(base).groups,shoppingOf(local).groups,shoppingOf(remote).groups,true,choice,conflicts)};
     if(base.groceries||local.groceries||remote.groceries)document.groceries={groups:mergePackingRecords(groceriesOf(base).groups,groceriesOf(local).groups,groceriesOf(remote).groups,true,choice,conflicts)};
+    if(!equal(travelOf(base),travelOf(local))){
+      if(equal(travelOf(remote),travelOf(base))||equal(travelOf(remote),travelOf(local))||choice==='mine')document.travel=copy(travelOf(local));
+      else conflicts.push({title:'여행 진행',field:'진행 일차',mine:travelOf(local).started?travelOf(local).dayId:'시작 전',theirs:travelOf(remote).started?travelOf(remote).dayId:'시작 전'});
+    }
     const beforeNote=base.note||'',mineNote=local.note||'',remoteNote=remote.note||'';
     if(mineNote!==beforeNote){
       if(remoteNote===beforeNote||remoteNote===mineNote||choice==='mine')document.note=mineNote;
@@ -181,7 +200,7 @@
       finally{this.busy=false;this.emit();}
     }
   }
-  const api={DEFAULT_GROCERIES,groceriesOf,merge,SyncEngine,copy,equal,DEFAULT_PACKING,packingOf,DEFAULT_SHOPPING,shoppingOf,DEFAULT_INFO,infoOf,MAX_DAYS};
+  const api={VISIT_FIELDS,travelOf,orderedItems,journeyView,DEFAULT_GROCERIES,groceriesOf,merge,SyncEngine,copy,equal,DEFAULT_PACKING,packingOf,DEFAULT_SHOPPING,shoppingOf,DEFAULT_INFO,infoOf,MAX_DAYS};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   else root.FamilySync=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

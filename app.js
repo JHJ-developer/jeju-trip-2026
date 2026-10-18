@@ -35,6 +35,66 @@ const s=$('startInput'),e=$('endInput'),t=$('titleInput'),m=$('detailInput');
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 const uid=()=>crypto.randomUUID();
 const pct=items=>items.length?Math.round(items.filter(i=>i.done).length/items.length*100):0;
+const visitLabels={place:'장소·주소',placeUrl:'장소 지도 링크',parking:'주차장·입구',parkingUrl:'주차장 지도 링크',reservation:'예약 정보',childNote:'아윤 메모',phone:'전화번호',bookingUrl:'예약 확인 링크',ticketUrl:'티켓 링크'};
+let onlyUnbought=false;
+const visitOpen=new Set();
+function safeWebLink(value){try{const u=new URL(value);return ['https:','http:'].includes(u.protocol)&&!u.username&&!u.password?u.href:'';}catch{return '';}}
+function visitLinks(item){
+  const links=[];
+  const link=(href,label)=>{if(href)links.push(`<a class="btn visit-link" href="${esc(href)}" target="_blank" rel="noopener noreferrer">${label}</a>`);};
+  const placeLink=safeWebLink(item.placeUrl),parkingLink=safeWebLink(item.parkingUrl);
+  link(placeLink||(item.place?'https://map.kakao.com/link/search/'+encodeURIComponent(item.place):''),placeLink?'장소 길찾기':'장소 지도');
+  link(parkingLink||(item.parking?'https://map.kakao.com/link/search/'+encodeURIComponent(item.parking):''),parkingLink?'주차장 길찾기':'주차장 지도');
+  const phone=(item.phone||'').replace(/[() .-]/g,'');if(/^\+?\d{3,20}$/.test(phone))links.push(`<a class="btn visit-link" href="tel:${esc(phone)}">전화</a>`);
+  link(safeWebLink(item.bookingUrl),'예약 확인');link(safeWebLink(item.ticketUrl),'티켓 보기');
+  return links.length?`<div class="visit-actions">${links.join('')}</div>`:'';
+}
+function visitPanel(item){
+  const rows=['place','parking','reservation','childNote'].filter(k=>item[k]).map(k=>`<div class="visit-row"><span>${visitLabels[k]}</span><div>${esc(item[k])}</div></div>`).join('');
+  const hasInfo=FamilySync.VISIT_FIELDS.some(k=>item[k]);
+  return `<details class="visit-panel" data-visit="${esc(item.id)}" ${visitOpen.has(item.id)?'open':''}><summary>${hasInfo?'방문 메모 · 예약':'방문 메모 추가'}</summary>${rows||'<p class="smallnote">장소·주차·예약 정보를 등록해 두세요.</p>'}${visitLinks(item)}<button class="btn visit-edit" data-visit-edit="${esc(item.id)}" ${editsDisabled()?'disabled':''}>방문 정보 수정</button></details>`;
+}
+function setTravel(dayId,started=true){
+  if(editsDisabled())return;
+  const base=copy(data),next=copy(data);next.travel={started,dayId:started?dayId:''};applyChange(base,next);
+}
+function renderJourney(){
+  const box=$('journeyCard');
+  if(familyKey&&!engine?.ready){box.hidden=true;return;}
+  box.hidden=false;const view=FamilySync.journeyView(data),disabled=editsDisabled()?'disabled':'';
+  let label='',title='',detail='',actions='',links='';
+  if(view.state==='empty'){label='여행 시작 전';title='첫 일정을 준비해 주세요';detail='일차에 일정을 추가하면 여기에서 진행 상황을 볼 수 있어요.';}
+  else if(view.state==='before'){
+    label='여행 시작 전';title=view.item?`${view.item.start||'시간 미정'} · ${view.item.title}`:'모든 일정이 체크되어 있어요';detail=view.item?`${view.day.label} · 시작하면 완료 체크에 따라 다음 일정을 안내해요.`:'일정의 완료 체크를 해제하면 다시 시작할 수 있어요.';
+    actions=view.item?`<button class="btn primary" id="startTravel" ${disabled}>여행 시작</button><button class="btn" id="showJourney">첫 일정 보기</button>`:'';
+  }else if(view.state==='active'){
+    label='진행 중 · '+view.day.label;title=(view.item.start||'시간 미정')+' · '+view.item.title;detail=view.item.reservation||view.item.place||'완료 체크하면 다음 일정으로 넘어갑니다.';links=visitLinks(view.item);
+    actions=`<button class="btn primary" id="completeJourney" ${disabled}>✓ 완료 · 다음 일정</button><button class="btn" id="showJourney">일정 보기</button>`;
+  }else if(view.state==='dayComplete'){
+    label=view.day.label+' 완료';title='오늘 일정 완료';detail=`다음: ${view.next.label} · ${view.nextItem.start||'시간 미정'} ${view.nextItem.title}`;
+    actions=`<button class="btn primary" id="nextTravelDay" ${disabled}>다음 일차 시작</button>`;
+  }else{label='여행 완료';title='모든 일정을 마쳤어요';detail='가족과 함께한 즐거운 여행을 기억해 주세요.';}
+  box.innerHTML=`<div class="journey-label">${esc(label)}</div><h2>${esc(title)}</h2><p>${esc(detail)}</p>${links}<div class="journey-actions">${actions}</div>${FamilySync.travelOf(data).started?`<button class="journey-reset" id="resetTravel" ${disabled}>여행 시작 전으로</button>`:''}`;
+  if($('startTravel'))$('startTravel').onclick=()=>setTravel(view.day.id);
+  if($('nextTravelDay'))$('nextTravelDay').onclick=()=>setTravel(view.next.id);
+  if($('resetTravel'))$('resetTravel').onclick=()=>{if(confirm('진행 안내를 여행 시작 전으로 돌릴까요? 일정의 완료 체크는 그대로 유지됩니다.'))setTravel('',false);};
+  if($('completeJourney'))$('completeJourney').onclick=()=>{
+    if(editsDisabled())return;const base=copy(data),next=copy(data);next.days.find(d=>d.id===view.day.id).items.find(i=>i.id===view.item.id).done=true;applyChange(base,next);
+  };
+  if($('showJourney'))$('showJourney').onclick=()=>{active=view.day.id;if(view.item)visitOpen.add(view.item.id);render();$('content').scrollIntoView({block:'start',behavior:'smooth'});};
+}
+function shiftUnfinished(day){
+  if(editsDisabled())return;
+  const items=day.items.filter(i=>!i.done&&i.start&&i.end);
+  if(!items.length){alert('시간이 지정된 미완료 일정이 없습니다.');return;}
+  const minutes=v=>Number(v.slice(0,2))*60+Number(v.slice(3));
+  if(items.some(i=>minutes(i.end)+30>=1440)){alert('자정을 넘는 일정이 있어 한 번에 이동할 수 없습니다. 해당 일정을 개별 수정해 주세요.');return;}
+  if(!confirm(day.label+'의 시간이 지정된 미완료 일정 '+items.length+'개를 30분 늦출까요? 미리 알림 시간도 함께 바뀝니다.'))return;
+  const base=copy(data),next=copy(data),ids=new Set(items.map(i=>i.id));
+  for(const item of next.days.find(d=>d.id===day.id).items)if(ids.has(item.id))for(const key of ['start','end']){const n=minutes(item[key])+30;item[key]=String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0');}
+  applyChange(base,next);
+}
+
 function render(){
   const target=new URLSearchParams(location.search).get('item');
   if(target&&!window.tripNotificationOpened&&data.days.length){const day=data.days.find(d=>d.items.some(i=>i.id===target));if(day){active=day.id;window.tripNotificationOpened=true;setTimeout(()=>{const el=$('item-'+target);if(el){el.classList.add('highlight');el.scrollIntoView({block:'center',behavior:'smooth'});}},100);}}
@@ -45,6 +105,7 @@ function render(){
   if(daysDlg.open)renderDays();
   $('noteText').textContent=data.note||'가족과 공유할 한 줄 메모를 남겨보세요.';
   $('noteButton').disabled=!!(familyKey&&(!engine?.ready||engine?.errorStatus===401||engine?.pending));
+  renderJourney();
   if(!['packing','shopping','groceries'].includes(active)&&!data.days.some(d=>d.id===active))active='shopping';
   const tabScroll=$('tabs').scrollLeft;
   const manageDaysButton=$('manageDaysBtn');
@@ -58,15 +119,20 @@ function render(){
   $('overallLabel').textContent='여행 일정 진척도';
   const day=data.days.find(d=>d.id===active);
   if(!day){$('content').innerHTML='<p class="smallnote">가족 일정을 불러오는 중입니다. 연결 상태를 확인해 주세요.</p>';return;}
-  const items=[...day.items].sort((a,b)=>(a.start||'99:99').localeCompare(b.start||'99:99')||(a.end||'').localeCompare(b.end||''));
+  const items=FamilySync.orderedItems(day);
   const disabled=familyKey&&(!engine?.ready||engine?.errorStatus===401||!!engine?.pending);
   $('content').innerHTML=`<section class="daycard"><div class="dayhead"><div><h2>${esc(day.label)}</h2><div class="daymeta">${esc(day.subtitle||'')}<br>${day.date?esc(day.date)+' · 한국 시간':'날짜 미지정 · 미리 알림 대기'}</div></div><div class="day-tools"><span class="dayprogress">${pct(items)}%</span><button class="iconbtn" id="editDayBtn" aria-label="이 일차의 이름과 설명 수정" ${disabled?'disabled':''}>✎</button></div></div>
-    ${items.map(i=>`<div id="item-${esc(i.id)}" class="item ${i.done?'done':''}"><input type="checkbox" data-check="${esc(i.id)}" aria-label="${esc(i.title)} 완료" ${i.done?'checked':''} ${disabled?'disabled':''}><div class="time">${i.start?esc(i.start)+'<br>~ '+esc(i.end):'시간 미정'}</div><div><div class="title">${esc(i.title)}</div>${i.start?`<div class="reminder-note">${i.reminder===false?'미리 알림 꺼짐':day.date?'10분 전 알림':'날짜 지정 필요'}</div>`:''}${i.detail?`<div class="detail">${esc(i.detail)}</div>`:''}</div><button class="iconbtn" data-edit="${esc(i.id)}" aria-label="${esc(i.title)} 수정" ${disabled?'disabled':''}>✎</button></div>`).join('')}
+    <div class="day-shortcuts"><button class="btn" id="progressDayBtn" ${disabled?'disabled':''}>이 일차 진행</button><button class="btn" id="shiftDayBtn" ${disabled?'disabled':''}>미완료 +30분</button></div>
+    ${items.map(i=>`<div id="item-${esc(i.id)}" class="item ${i.done?'done':''}"><input type="checkbox" data-check="${esc(i.id)}" aria-label="${esc(i.title)} 완료" ${i.done?'checked':''} ${disabled?'disabled':''}><div class="time">${i.start?esc(i.start)+'<br>~ '+esc(i.end):'시간 미정'}</div><div><div class="title">${esc(i.title)}</div>${i.start?`<div class="reminder-note">${i.reminder===false?'미리 알림 꺼짐':day.date?'10분 전 알림':'날짜 지정 필요'}</div>`:''}${i.detail?`<div class="detail">${esc(i.detail)}</div>`:''}${visitPanel(i)}</div><button class="iconbtn" data-edit="${esc(i.id)}" aria-label="${esc(i.title)} 수정" ${disabled?'disabled':''}>✎</button></div>`).join('')}
     <button class="addbtn" id="addBtn" ${disabled?'disabled':''}>＋ 일정 추가</button></section>`;
   $('content').querySelectorAll('[data-check]').forEach(cb=>cb.onchange=()=>{
     const base=copy(data),next=copy(data);next.days.find(d=>d.id===day.id).items.find(i=>i.id===cb.dataset.check).done=cb.checked;applyChange(base,next);
   });
   $('content').querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openEditor(day.id,b.dataset.edit));
+  $('content').querySelectorAll('[data-visit]').forEach(el=>el.ontoggle=()=>{if(!el.isConnected)return;if(el.open)visitOpen.add(el.dataset.visit);else visitOpen.delete(el.dataset.visit);});
+  $('content').querySelectorAll('[data-visit-edit]').forEach(b=>b.onclick=()=>{openEditor(day.id,b.dataset.visitEdit);$('visitFields').open=true;});
+  $('progressDayBtn').onclick=()=>{if(confirm(day.label+'를 현재 진행 일차로 설정할까요? 완료 체크는 유지됩니다.'))setTravel(day.id);};
+  $('shiftDayBtn').onclick=()=>shiftUnfinished(day);
   $('addBtn').onclick=()=>openEditor(day.id);
   $('editDayBtn').onclick=()=>openDay(day.id);
   const progress=pct(data.days.flatMap(d=>d.items));$('overallText').textContent=progress+'%';$('overallBar').style.width=progress+'%';
@@ -77,13 +143,16 @@ function renderPacking(scope='packing'){
   const disabled=familyKey&&(!engine?.ready||engine?.errorStatus===401||!!engine?.pending);
   $('overallLabel').textContent=shopping?'구매 완료':'준비물 챙김';$('overallText').textContent=done+' / '+items.length+'개';$('overallBar').style.width=pct(items)+'%';
   $('content').innerHTML=`<div class="packing-head"><div><h2>${scope==='groceries'?'장보기':shopping?'사야할 것':'준비물'}</h2><p>${shopping?'구매한 물건을 체크해 주세요.':'챙긴 물건을 체크해 주세요.'}</p></div>${shopping?'':`<button class="btn" id="addPackGroup" ${disabled?'disabled':''}>＋ 그룹 추가</button>`}</div>`+
+    (scope==='groceries'?`<div class="list-filters"><button class="btn ${!onlyUnbought?'selected':''}" id="allGroceries" aria-pressed="${!onlyUnbought}">전체</button><button class="btn ${onlyUnbought?'selected':''}" id="pendingGroceries" aria-pressed="${onlyUnbought}">미구매</button></div>`:'')+
     (shopping?'':`<label class="pack-filter"><input type="checkbox" id="onlyUnpacked" ${packingView.onlyUnpacked?'checked':''}> 미챙김만 보기</label>`)+
     groups.map(g=>{
-      const visible=shopping||!packingView.onlyUnpacked?g.items:g.items.filter(i=>!i.done);
-      const rows=visible.map(i=>`<div class="pack-item ${i.done?'done':''}"><input type="checkbox" id="check-${esc(i.id)}" data-pack-check="${esc(i.id)}" data-group="${esc(g.id)}" ${i.done?'checked':''} ${disabled?'disabled':''}><label for="check-${esc(i.id)}">${esc(i.title)}</label><button class="iconbtn" data-pack-edit="${esc(i.id)}" data-group="${esc(g.id)}" aria-label="${esc(i.title)} ${noun} 수정" ${disabled?'disabled':''}>✎</button></div>`).join('')||`<p class="pack-empty">${g.items.length?'모두 챙겼어요.':noun+'을 추가해 주세요.'}</p>`;
+      const visible=scope==='groceries'&&onlyUnbought?g.items.filter(i=>!i.done):shopping||!packingView.onlyUnpacked?g.items:g.items.filter(i=>!i.done);
+      const rows=visible.map(i=>`<div class="pack-item ${i.done?'done':''}"><input type="checkbox" id="check-${esc(i.id)}" data-pack-check="${esc(i.id)}" data-group="${esc(g.id)}" ${i.done?'checked':''} ${disabled?'disabled':''}><label for="check-${esc(i.id)}"><span class="pack-title">${esc(i.title)}</span>${scope==='groceries'?`${i.note?`<span class="pack-note">${esc(i.note)}</span>`:''}${i.quantity?`<span class="quantity-badge">수량 ${esc(i.quantity)}</span>`:''}`:''}</label><button class="iconbtn" data-pack-edit="${esc(i.id)}" data-group="${esc(g.id)}" aria-label="${esc(i.title)} ${noun} 수정" ${disabled?'disabled':''}>✎</button></div>`).join('')||`<p class="pack-empty">${g.items.length?(scope==='groceries'?'모두 구매했어요.':'모두 챙겼어요.'):noun+'을 추가해 주세요.'}</p>`;
       const body=rows+`<button class="addbtn" data-pack-add="${esc(g.id)}" ${disabled?'disabled':''}>＋ ${noun} 추가</button>`;
       return shopping?`<section class="daycard">${body}</section>`:`<details class="daycard pack-group" data-pack-disclosure="${esc(g.id)}" ${packingView.closed[g.id]?'':'open'}><summary><span>${esc(g.name)}</span><span class="dayprogress">${g.items.filter(i=>i.done).length} / ${g.items.length}</span></summary><div class="pack-group-tools"><button class="btn" data-pack-group="${esc(g.id)}" ${disabled?'disabled':''}>그룹 수정</button></div>${body}</details>`;
     }).join('')+(!groups.length?'<p class="pack-empty">그룹을 추가해 준비물을 정리해 보세요.</p>':'');
+  if($('allGroceries'))$('allGroceries').onclick=()=>{onlyUnbought=false;render();};
+  if($('pendingGroceries'))$('pendingGroceries').onclick=()=>{onlyUnbought=true;render();};
   if($('addPackGroup'))$('addPackGroup').onclick=()=>openPack('group');
   if($('onlyUnpacked'))$('onlyUnpacked').onchange=event=>{packingView.onlyUnpacked=event.target.checked;write(VIEW_KEY,packingView);render();};
   $('content').querySelectorAll('[data-pack-disclosure]').forEach(el=>el.ontoggle=()=>{if(!el.isConnected)return;packingView.closed[el.dataset.packDisclosure]=!el.open;write(VIEW_KEY,packingView);});
@@ -105,6 +174,7 @@ function openPack(kind,groupId,itemId,scope='packing'){
   $('packNameLabel').textContent=kind==='group'?'그룹명':noun+'명';
   $('packName').maxLength=kind==='group'?100:300;$('packName').value=kind==='group'?(group?.name||''):(item?.title||'');
   $('packName').placeholder=kind==='group'?'예: 아윤이짐, 공통':'예: 칫솔 3개';$('packName').setCustomValidity('');
+  $('groceryFields').hidden=scope!=='groceries'||kind!=='item';$('packQuantity').value=item?.quantity||'';$('packNote').value=item?.note||'';
   $('packDelete').hidden=kind==='group'?!group:!item;packDlg.showModal();
 }
 $('packCancel').onclick=()=>packDlg.close();
@@ -115,8 +185,8 @@ $('packForm').addEventListener('submit',event=>{
   const {kind,groupId,itemId,scope,base}=packEditing,next=copy(base);next[scope]=copy(listOf(base,scope));
   const group=next[scope].groups.find(g=>g.id===groupId);
   if(kind==='group'){if(group)group.name=name;else next[scope].groups.push({id:uid(),name,items:[]});}
-  else if(itemId)group.items.find(i=>i.id===itemId).title=name;
-  else group.items.push({id:uid(),title:name,done:false});
+  else{const values={title:name};if(scope==='groceries'){values.quantity=$('packQuantity').value.trim();values.note=$('packNote').value.trim();}
+    if(itemId)Object.assign(group.items.find(i=>i.id===itemId),values);else group.items.push({id:uid(),...values,done:false});}
   packDlg.close();applyChange(base,next);
 });
 $('packDelete').onclick=()=>{
@@ -157,7 +227,7 @@ function updateStatus(){
 }
 function conflictValue(value){if(value===null)return '삭제';if(typeof value==='object'){if(value.label)return value.label+' ('+value.items.length+'개 일정)';if(value.name)return value.name+' ('+value.items.length+'개 항목)';if(value.start===undefined)return value.title+' · '+(value.done?'완료':'미완료');return value.title+' / '+value.start+'~'+value.end+' / '+value.detail;}if(typeof value==='boolean')return value?'완료':'미완료';return value||'(비어 있음)';}
 function showConflicts(conflicts){
-  const names={name:'그룹명',start:'시작시각',end:'종료시각',title:'일정명',detail:'메모',done:'완료 체크',reminder:'미리 알림',date:'실제 날짜',label:'탭 이름 · 날짜',subtitle:'일차 설명'};
+  const names={...visitLabels,quantity:'수량',note:'물품 메모',name:'그룹명',start:'시작시각',end:'종료시각',title:'일정명',detail:'메모',done:'완료 체크',reminder:'미리 알림',date:'실제 날짜',label:'탭 이름 · 날짜',subtitle:'일차 설명'};
   $('conflictList').innerHTML=conflicts.map(c=>`<div class="conflictitem"><strong>${esc(c.title)} · ${esc(names[c.field]||c.field)}</strong><p>내 수정: ${esc(conflictValue(c.mine))}</p><p>가족 수정: ${esc(conflictValue(c.theirs))}</p></div>`).join('');
   if(!conflictDialog.open)conflictDialog.showModal();updateStatus();
 }
@@ -222,6 +292,7 @@ function openEditor(dayId,itemId){
   editing={dayId,itemId,base:copy(data)};
   $('modalTitle').textContent=item?'일정 수정':'새 일정 추가';
   s.value=item?.start||'';e.value=item?.end||'';t.value=item?.title||'';m.value=item?.detail||'';
+  for(const key of FamilySync.VISIT_FIELDS)$('visit-'+key).value=item?.[key]||'';$('visitFields').open=false;
   $('reminderInput').checked=item?.reminder!==false;$('reminderHint').textContent=day.date?'시작 10분 전, 가족에게 알려드립니다. 끄면 가족 모두에게 적용됩니다.':'일차 수정에서 실제 날짜를 지정해야 알림이 전송됩니다.';$('deleteBtn').hidden=!item;dlg.showModal();
 }
 $('cancelBtn').onclick=()=>dlg.close();
@@ -232,6 +303,8 @@ $('editForm').addEventListener('submit',event=>{
   if(e.value<s.value){alert('종료시각이 시작시각보다 빠릅니다.');return;}
   const next=copy(editing.base),day=next.days.find(d=>d.id===editing.dayId);
   const values={start:s.value,end:e.value,title:t.value.trim(),detail:m.value.trim(),reminder:$('reminderInput').checked};
+  for(const key of FamilySync.VISIT_FIELDS){const value=$('visit-'+key).value.trim();if(key.endsWith('Url')&&value&&!safeWebLink(value)){alert('지도·예약·티켓 링크는 http 또는 https 주소로 입력해 주세요.');return;}values[key]=value;}
+  if(values.phone&&!/^[+0-9() .-]*$/.test(values.phone)){alert('전화번호는 숫자와 +, 괄호, 하이픈으로 입력해 주세요.');return;}
   if(editing.itemId)Object.assign(day.items.find(i=>i.id===editing.itemId),values);
   else day.items.push({id:uid(),...values,done:false});
   const base=editing.base;dlg.close();applyChange(base,next);
