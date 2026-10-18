@@ -20,7 +20,7 @@ async function refreshPush(){
  if(reason)$('pushStatus').textContent=reason;
  if(!familyKey)return;
  try{pushConfig=await pushRequest();$('pushDisable').hidden=!pushConfig.registered;$('pushEnable').textContent=pushConfig.registered?'알림 연결 복구':'이 기기에서 알림 받기';
- if(!reason)$('pushStatus').textContent=pushConfig.registered?'이 기기 알림 켜짐 · 일정 10분 전 / 사야 할 것·준비물 변경':'이 기기의 알림을 등록해 주세요. 가족 등록 코드가 필요합니다.';
+ if(!reason)$('pushStatus').textContent=pushConfig.registered?'이 기기 알림 켜짐 · 일정 10분 전 / 준비물 변경':'이 기기의 알림을 등록해 주세요. 가족 등록 코드가 필요합니다.';
  }catch(error){$('pushStatus').textContent=error.message;}
 }
 $('pushSettings').addEventListener('toggle',()=>{if($('pushSettings').open)void refreshPush();});
