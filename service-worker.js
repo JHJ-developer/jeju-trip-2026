@@ -1,5 +1,5 @@
-const CACHE='jeju-trip-v17-travel-progress';
-const ASSETS=['./','./index.html','./manifest.webmanifest','./defaults.js?v=17','./sync.js?v=17','./app.js?v=17','./notifications.js?v=17'];
+const CACHE='jeju-trip-v18-schedule-only';
+const ASSETS=['./','./index.html','./manifest.webmanifest','./defaults.js?v=18','./sync.js?v=18','./app.js?v=18','./notifications.js?v=18'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('jeju-trip-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',e=>{
