@@ -108,6 +108,9 @@ button:disabled{opacity:.5;cursor:default}
 
 .journey-card{background:#edf5ff;border:1px solid #dce8f6;border-radius:16px;padding:16px;margin-top:14px}.journey-label{font-size:13px;color:#355d89;font-weight:750}.journey-card h2{font-size:21px;margin:8px 0;overflow-wrap:anywhere}.journey-card p{font-size:14px;color:var(--muted);line-height:1.5;margin:6px 0;white-space:pre-wrap}.journey-actions,.visit-actions,.day-shortcuts,.list-filters{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.journey-actions:empty{display:none}.journey-reset{display:block;border:0;background:transparent;padding:8px 0 0;color:var(--muted);font-size:12px;min-height:32px}.visit-link{text-decoration:none;color:var(--text);display:inline-flex;align-items:center;justify-content:center;font-size:13px}.day-shortcuts{margin:0 0 12px}.day-shortcuts .btn{font-size:13px}.visit-panel{margin-top:10px;padding:10px;background:#f5f7fa;border-radius:10px;font-size:13px}.visit-panel summary{cursor:pointer;font-weight:650;min-height:32px;line-height:32px}.visit-row{display:grid;grid-template-columns:68px minmax(0,1fr);gap:8px;margin-top:8px;line-height:1.6}.visit-row>span{color:var(--muted)}.visit-row>div{white-space:pre-wrap;overflow-wrap:anywhere}.visit-edit{font-size:13px;margin-top:10px}.visit-fields{margin:14px 0}.visit-fields summary{padding:12px 0;cursor:pointer;font-weight:750}.visit-fields .field{margin-top:10px}.pack-title{display:block;font-weight:700}.pack-note{display:block;color:var(--muted);font-size:13px;margin-top:5px;white-space:pre-wrap}.quantity-badge{display:inline-block;background:#f0f4f8;border:1px solid var(--line);border-radius:7px;padding:3px 8px;font-size:12px;margin-top:7px;color:var(--text)}.pack-item.done .pack-note,.pack-item.done .quantity-badge{opacity:.6;text-decoration:none}.list-filters{margin:0 0 12px}.list-filters .selected{background:var(--accent);border-color:var(--accent);color:#fff}
 @media(max-width:480px){.journey-card h2{font-size:19px}.visit-row{grid-template-columns:1fr;gap:2px}.visit-actions .btn{flex:1 1 auto}.item .visit-panel{margin-left:-76px;margin-top:14px}.item .visit-panel .btn{min-height:42px}.day-tools{gap:4px}}
+.pack-sortable{grid-template-columns:26px minmax(0,1fr) 34px 40px;gap:6px}
+.pack-handle{border:0;background:transparent;color:var(--muted);min-height:44px;width:40px;touch-action:auto;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none;cursor:grab;border-radius:8px}
+.pack-dragging{background:#e6f1ff;outline:2px solid #2563eb;outline-offset:-2px;border-radius:8px}.pack-dragging .pack-handle{background:#2563eb;color:white;cursor:grabbing}
 </style>
 </head>
 <body>
@@ -244,10 +247,11 @@ button:disabled{opacity:.5;cursor:default}
 <div class="field"><label for="pushCode">가족 알림 등록 코드</label><input id="pushCode" type="password" required autocomplete="off" maxlength="64"></div>
 <p class="smallnote" id="pushFeedback" role="status"></p><div class="actions"><button type="button" class="btn" id="pushCancel">취소</button><button type="submit" class="btn primary" id="pushSubmit">등록하고 알림 허용</button></div>
 </form></dialog>
-<script src="./defaults.js?v=18"></script>
-<script src="./sync.js?v=18"></script>
-<script src="./app.js?v=18"></script>
-<script src="./notifications.js?v=18"></script>
+<script src="./defaults.js?v=19"></script>
+<script src="./sync.js?v=19"></script>
+<script src="./packing-sort.js?v=19"></script>
+<script src="./app.js?v=19"></script>
+<script src="./notifications.js?v=19"></script>
 </body>
 </html>
 

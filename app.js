@@ -24,7 +24,7 @@ let active=['shopping','packing','groceries'].includes(new URLSearchParams(locat
 const dlg=$('editDialog'), conflictDialog=$('conflictDialog'), packDlg=$('packDialog'), noteDlg=$('noteDialog');
 const tripDlg=$('tripDialog'),daysDlg=$('daysDialog'),dayDlg=$('dayDialog');
 let tripBase=null,dayEditing=null;
-const editorOpen=()=>[dlg,packDlg,noteDlg,tripDlg,daysDlg,dayDlg,$("pushDialog")].some(d=>d.open);
+const editorOpen=()=>packingSorter?.busy||[dlg,packDlg,noteDlg,tripDlg,daysDlg,dayDlg,$("pushDialog")].some(d=>d.open);
 const editsDisabled=()=>!!(familyKey&&(!engine?.ready||engine?.errorStatus===401||engine?.pending));
 let noteBase=null;
 let packEditing=null;
@@ -96,6 +96,7 @@ function shiftUnfinished(day){
 }
 
 function render(){
+  packingSorter?.cancel();
   const target=new URLSearchParams(location.search).get('item');
   if(target&&!window.tripNotificationOpened&&data.days.length){const day=data.days.find(d=>d.items.some(i=>i.id===target));if(day){active=day.id;window.tripNotificationOpened=true;setTimeout(()=>{const el=$('item-'+target);if(el){el.classList.add('highlight');el.scrollIntoView({block:'center',behavior:'smooth'});}},100);}}
   const info=infoOf(data);
@@ -137,17 +138,25 @@ function render(){
   $('editDayBtn').onclick=()=>openDay(day.id);
   const progress=pct(data.days.flatMap(d=>d.items));$('overallText').textContent=progress+'%';$('overallBar').style.width=progress+'%';
 }
+var packingSorter=PackingSort.install($('content'),(groupId,order)=>{
+  if(editsDisabled())return;
+  const base=copy(data),next=copy(data);next.packing=copy(packingOf(data));
+  const group=next.packing.groups.find(g=>g.id===groupId);if(!group)return;
+  const visible=new Set(order),ordered=order.map(id=>group.items.find(i=>i.id===id)).filter(Boolean);
+  let index=0;group.items=group.items.map(item=>visible.has(item.id)?ordered[index++]:item);
+  applyChange(base,next);
+});
 function renderPacking(scope='packing'){
   const shopping=scope!=='packing',noun=shopping?'구매 항목':'준비물';
   const groups=listOf(data,scope).groups,items=groups.flatMap(g=>g.items),done=items.filter(i=>i.done).length;
   const disabled=familyKey&&(!engine?.ready||engine?.errorStatus===401||!!engine?.pending);
   $('overallLabel').textContent=shopping?'구매 완료':'준비물 챙김';$('overallText').textContent=done+' / '+items.length+'개';$('overallBar').style.width=pct(items)+'%';
-  $('content').innerHTML=`<div class="packing-head"><div><h2>${scope==='groceries'?'장보기':shopping?'사야할 것':'준비물'}</h2><p>${shopping?'구매한 물건을 체크해 주세요.':'챙긴 물건을 체크해 주세요.'}</p></div>${shopping?'':`<button class="btn" id="addPackGroup" ${disabled?'disabled':''}>＋ 그룹 추가</button>`}</div>`+
+  $('content').innerHTML=`<div class="packing-head"><div><h2>${scope==='groceries'?'장보기':shopping?'사야할 것':'준비물'}</h2><p>${shopping?'구매한 물건을 체크해 주세요.':'챙김 체크 · 오른쪽 ☰를 길게 눌러 순서 이동'}</p></div>${shopping?'':`<button class="btn" id="addPackGroup" ${disabled?'disabled':''}>＋ 그룹 추가</button>`}</div>`+
     (scope==='groceries'?`<div class="list-filters"><button class="btn ${!onlyUnbought?'selected':''}" id="allGroceries" aria-pressed="${!onlyUnbought}">전체</button><button class="btn ${onlyUnbought?'selected':''}" id="pendingGroceries" aria-pressed="${onlyUnbought}">미구매</button></div>`:'')+
     (shopping?'':`<label class="pack-filter"><input type="checkbox" id="onlyUnpacked" ${packingView.onlyUnpacked?'checked':''}> 미챙김만 보기</label>`)+
     groups.map(g=>{
       const visible=scope==='groceries'&&onlyUnbought?g.items.filter(i=>!i.done):shopping||!packingView.onlyUnpacked?g.items:g.items.filter(i=>!i.done);
-      const rows=visible.map(i=>`<div class="pack-item ${i.done?'done':''}"><input type="checkbox" id="check-${esc(i.id)}" data-pack-check="${esc(i.id)}" data-group="${esc(g.id)}" ${i.done?'checked':''} ${disabled?'disabled':''}><label for="check-${esc(i.id)}"><span class="pack-title">${esc(i.title)}</span>${scope==='groceries'?`${i.note?`<span class="pack-note">${esc(i.note)}</span>`:''}${i.quantity?`<span class="quantity-badge">수량 ${esc(i.quantity)}</span>`:''}`:''}</label><button class="iconbtn" data-pack-edit="${esc(i.id)}" data-group="${esc(g.id)}" aria-label="${esc(i.title)} ${noun} 수정" ${disabled?'disabled':''}>✎</button></div>`).join('')||`<p class="pack-empty">${g.items.length?(scope==='groceries'?'모두 구매했어요.':'모두 챙겼어요.'):noun+'을 추가해 주세요.'}</p>`;
+      const rows=visible.map(i=>`<div ${shopping?'':`data-sort-item="${esc(i.id)}"`} class="pack-item ${shopping?'':'pack-sortable'} ${i.done?'done':''}"><input type="checkbox" id="check-${esc(i.id)}" data-pack-check="${esc(i.id)}" data-group="${esc(g.id)}" ${i.done?'checked':''} ${disabled?'disabled':''}><label for="check-${esc(i.id)}"><span class="pack-title">${esc(i.title)}</span>${scope==='groceries'?`${i.note?`<span class="pack-note">${esc(i.note)}</span>`:''}${i.quantity?`<span class="quantity-badge">수량 ${esc(i.quantity)}</span>`:''}`:''}</label><button class="iconbtn" data-pack-edit="${esc(i.id)}" data-group="${esc(g.id)}" aria-label="${esc(i.title)} ${noun} 수정" ${disabled?'disabled':''}>✎</button>${shopping?'':`<button type="button" class="pack-handle" data-sort-handle="${esc(i.id)}" aria-label="${esc(i.title)} 순서 이동: 길게 누르거나 위아래 방향키" aria-pressed="false" ${disabled?'disabled':''}>☰</button>`}</div>`).join('')||`<p class="pack-empty">${g.items.length?(scope==='groceries'?'모두 구매했어요.':'모두 챙겼어요.'):noun+'을 추가해 주세요.'}</p>`;
       const body=rows+`<button class="addbtn" data-pack-add="${esc(g.id)}" ${disabled?'disabled':''}>＋ ${noun} 추가</button>`;
       return shopping?`<section class="daycard">${body}</section>`:`<details class="daycard pack-group" data-pack-disclosure="${esc(g.id)}" ${packingView.closed[g.id]?'':'open'}><summary><span>${esc(g.name)}</span><span class="dayprogress">${g.items.filter(i=>i.done).length} / ${g.items.length}</span></summary><div class="pack-group-tools"><button class="btn" data-pack-group="${esc(g.id)}" ${disabled?'disabled':''}>그룹 수정</button></div>${body}</details>`;
     }).join('')+(!groups.length?'<p class="pack-empty">그룹을 추가해 준비물을 정리해 보세요.</p>':'');

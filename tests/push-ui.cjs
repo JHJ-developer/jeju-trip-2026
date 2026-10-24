@@ -3,7 +3,7 @@ const vm=require('node:vm');
 const root=path.resolve(__dirname,'..');
 const dom=new JSDOM(fs.readFileSync(path.join(root,'index.html'),'utf8'),{url:'https://jhj-developer.github.io/jeju-trip-2026/',runScripts:'outside-only'});
 const w=dom.window;Object.defineProperty(w,'crypto',{value:webcrypto});w.matchMedia=()=>({matches:false});w.HTMLElement.prototype.scrollIntoView=()=>{};w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;};w.alert=()=>{};
-for(const f of ['defaults.js','sync.js','app.js','notifications.js'])vm.runInContext(fs.readFileSync(path.join(root,f),'utf8'),dom.getInternalVMContext());
+for(const f of ['defaults.js','sync.js','packing-sort.js','app.js','notifications.js'])vm.runInContext(fs.readFileSync(path.join(root,f),'utf8'),dom.getInternalVMContext());
 w.eval("active=data.days[0].id;render();openEditor(active,data.days[0].items[0].id)");
 assert.equal(w.document.querySelector('#reminderInput').checked,true);
 w.document.querySelector('#reminderInput').checked=false;w.document.querySelector('#editForm').dispatchEvent(new w.Event('submit',{cancelable:true}));

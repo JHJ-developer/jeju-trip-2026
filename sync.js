@@ -33,6 +33,21 @@
         if(group)theirs.items=mergePackingRecords(before.items,mine.items,theirs.items,false,choice,conflicts);
       }
     }
+    if(!group){
+      const common=base.map(x=>x.id).filter(id=>local.some(x=>x.id===id)&&remote.some(x=>x.id===id)&&result.some(x=>x.id===id));
+      const mine=local.map(x=>x.id).filter(id=>common.includes(id)),theirs=remote.map(x=>x.id).filter(id=>common.includes(id));
+      if(!equal(common,mine)){
+        let useMine=true;
+        if(!equal(common,theirs)&&!equal(mine,theirs)){
+          conflicts.push({title:'준비물',field:'항목 순서',mine:mine.map(id=>local.find(x=>x.id===id).title).join(' → '),theirs:theirs.map(id=>remote.find(x=>x.id===id).title).join(' → ')});useMine=choice==='mine';
+        }
+        if(useMine){
+          // Reorder surviving shared slots; concurrent additions keep their slots.
+          const reordered=mine.map(id=>result.find(x=>x.id===id));let i=0;
+          result=result.map(item=>common.includes(item.id)?reordered[i++]:item);
+        }
+      }
+    }
     return result;
   }
 
